@@ -110,13 +110,14 @@ Generic, append-only, hash-chained log of every event across all three mandate t
 | `reference_id` | UUID / BIGINT | NOT NULL | **polymorphic reference** — the PK of the row in `intent_mandates`, `cart_mandates`, or `payment_mandates` this event concerns (no formal FK constraint, since it points to different tables depending on `type`) |
 | `event` | VARCHAR | NOT NULL | `issued` \| `approved` \| `rejected` \| `awaiting_approval` \| `approved_by_user` \| `declined_by_user` \| `expired` \| `revoked` \| `paid` \| `failed` |
 | `reason` | VARCHAR | NULLABLE | human-readable explanation — required for `rejected`, `awaiting_approval`, and `failed` events |
-| `data_hash` | VARCHAR | NOT NULL | hash of the relevant record's content at this moment |
-| `prev_hash` | VARCHAR | NULLABLE | hash of the previous row in `audit_log` — NULL only for the very first row; this is what makes the chain tamper-evident |
-| `created_at` | TIMESTAMP | NOT NULL, DEFAULT now() | |
+| `record_snapshot` | TEXT | NOT NULL | canonical (sorted-key) JSON of the referenced record's content captured at write time — stored verbatim so the chain can be re-verified from `audit_log` alone, without re-reading tables that may have legitimately changed since |
+| `data_hash` | VARCHAR | NOT NULL | `SHA-256` over a canonical JSON of `{ prev_hash, type, reference_id, event, reason, record_snapshot }` — folds in the previous row's hash, so it doubles as this row's link in the chain |
+| `prev_hash` | VARCHAR | NULLABLE | the previous row's `data_hash` — NULL only for the very first row; a fixed `"GENESIS"` sentinel is used in the hash input for that first row |
+| `created_at` | TIMESTAMP | NOT NULL, DEFAULT now() | also the chain order (rows are verified in ascending `id`) |
 
-**Tamper-evidence property:** editing any row's content changes its `data_hash`, which breaks every `prev_hash` reference in every row that follows — this can be verified by recomputing the chain end to end.
+**Tamper-evidence property:** editing any row's content (or its `record_snapshot`) changes its recomputed `data_hash`, which no longer matches the `prev_hash` the next row stored — `GET /audit-log/verify` recomputes the chain end to end and reports the first row where it breaks.
 
-**Append serialization:** rows must be appended by a single writer (or under a lock on the current tail row) so `prev_hash` always points at the true previous row — concurrent appends would fork the chain. Hash = SHA-256 over a canonical (sorted-key) JSON serialization of the referenced record.
+**Append serialization:** appends run under a Postgres transaction-scoped advisory lock (`pg_advisory_xact_lock`) so `prev_hash` always points at the true tail — concurrent appends would otherwise fork the chain.
 
 ---
 
