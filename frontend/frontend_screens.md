@@ -33,7 +33,7 @@ The only screen with real user *actions*, not just display. This is where the es
 
 **Shows:** list of cart mandates with `status: pending_approval` — items, total amount, reason ("near monthly cap — requires approval"), with Approve / Decline buttons.
 
-**Behavior:** auto-refreshes via polling (~every 3–5s) against `GET /cart-mandates?user_id={id}&status=pending_approval`, so a new pending cart appears without a manual refresh.
+**Behavior:** auto-refreshes via polling (~every 3–5s) against `GET /cart-mandates?status=pending_approval` (user derived from the token), so a new pending cart appears without a manual refresh.
 
 **Actions:** `POST /cart-mandates/{id}/resolve` with `decision: approve | decline`
 
@@ -45,7 +45,7 @@ The evidence screen — human-readable audit trail, used to demonstrate that gua
 
 **Shows:** chronological list of audit events, each rendered from the `summary` field (e.g. "Cart of ₹450 for milk, bread, eggs — approved" / "Cart of ₹1,200 — rejected: exceeds monthly cap").
 
-**Data source:** `GET /audit-log?user_id={id}`
+**Data source:** `GET /audit-log`
 
 ---
 
@@ -57,11 +57,17 @@ Small, focused screen — a single dramatic action for the pitch: prove the audi
 
 ---
 
-## 5. Catalog View (optional but recommended)
+## 5. Catalog View (recommended — two demos live here)
 
-Shows what the agent is able to browse — including the seeded poisoned entry used for the prompt-injection resistance demo. Lets a viewer visually compare the malicious description against the agent's actual (unaffected) cart proposal.
+Shows what the agent is able to browse — including the seeded poisoned entry used for the prompt-injection resistance demo.
 
-**Data source:** `GET /catalog?category=groceries`
+**Actions:**
+- *Mark as low* per item → `POST /restock-list` (adds the item to the agent's shopping queue)
+- *Run agent now* → `POST /agent/run` on the FastAPI agent (runs one shopping cycle)
+
+**Prompt-injection comparison:** after a cycle, pull `GET /agent-runs?limit=1` and render the poisoned entry's description beside the agent's actual `parsed_cart` — showing the embedded instruction had no effect.
+
+**Data source:** `GET /catalog?category=groceries`, `GET /agent-runs?limit=1`
 
 ---
 

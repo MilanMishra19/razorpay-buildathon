@@ -7,7 +7,11 @@ Core principle: the LLM is used for exactly one thing — interpreting a vague, 
 
 ## Trigger
 
-Manual, not scheduled/cron. A "mark as low" action per catalog item (surfaced on the Catalog View screen) appends to a small "needs restocking" list. That list is what feeds the shopping cycle — there is no background polling or timer deciding when the agent runs.
+Manual, not scheduled/cron. A "mark as low" action per catalog item (surfaced on the Catalog View screen) appends to the user's "needs restocking" list — persisted via `POST /restock-list` on the Spring Boot API (table `restock_list`), not held in memory. A shopping cycle is kicked off explicitly by `POST /agent/run` on this service (a "Run agent now" button on the frontend); that list is its input. There is no background polling or timer deciding when the agent runs.
+
+### `POST /agent/run`
+**Request:** `user_id` (the frontend passes the logged-in user; in a hardened build this would come from a forwarded token)
+**Behavior:** runs exactly one shopping cycle — assemble → one LLM call → post-process → `POST /cart-mandates` → `POST /agent-runs`. Returns the `agent_run` id and the cart mandate outcome.
 
 ---
 
@@ -17,9 +21,9 @@ Manual, not scheduled/cron. A "mark as low" action per catalog item (surfaced on
 
 **Input, assembled by FastAPI before the call:**
 - The user's standing instruction (plain language, e.g. "keep milk, bread, eggs stocked, stay in budget")
-- The current "needs restocking" list
-- The relevant catalog slice — only items matching the active mandate's category, not the full catalog
-- Remaining budget for this cycle (from Spring Boot's cumulative spend calculation)
+- The current "needs restocking" list (`GET /restock-list`)
+- The relevant catalog slice — only items matching the active mandate's category, not the full catalog (`GET /catalog?category=...`)
+- Remaining budget for this cycle (from Spring Boot's cumulative spend calculation, via `GET /intent-mandates/active`)
 
 **Output:** strict JSON only — a list of `{ catalog_id, quantity }`. No prose, no explanation text, no other fields. The LLM decides both which items and how many of each, self-correcting against the budget it was given as input (single-pass — no iterative "try again" loop; see Efficiency below).
 
@@ -33,8 +37,11 @@ Before anything is sent to Spring Boot's `POST /cart-mandates`, FastAPI:
 1. Validates every `catalog_id` in the LLM's output actually exists in the catalog
 2. Independently recomputes the cart total from real catalog prices — never trusts the LLM's own arithmetic
 3. Forwards the resulting cart to Spring Boot, which performs the actual guardrail enforcement (category, per-order cap, monthly cap, escalation threshold) regardless of what the LLM intended or claimed
+4. Records the cycle to `POST /agent-runs` — the assembled prompt, the raw model response (verbatim, pre-validation), the heuristic's flagged entries, the parsed cart, and the resulting `cart_mandate_id`. This row is what the Catalog View reads to show "what the poisoned entry said" beside "what the agent actually did."
 
 This is the literal implementation of "bounded and gated": nothing the LLM produces is trusted, everything is independently checked.
+
+**Calling the Spring Boot API:** every request the agent makes (`GET /catalog`, `GET /intent-mandates/active`, `GET /restock-list`, `POST /cart-mandates`, `POST /agent-runs`) carries the shared `X-Service-Token` and `X-On-Behalf-Of: {user_id}` headers. The agent never holds a user JWT.
 
 ---
 
