@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: aethis-db
+    environment:
+      POSTGRES_DB: aethis
+      POSTGRES_USER: aethis
+      POSTGRES_PASSWORD: aethis
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - aethis-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aethis -d aethis"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  aethis-db-data:
