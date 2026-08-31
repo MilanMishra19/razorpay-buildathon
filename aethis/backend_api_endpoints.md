@@ -6,6 +6,8 @@ Scope: single category (groceries), one active intent mandate per user
 
 Core principle: this service is where **all guardrail enforcement happens**. The FastAPI agent can *propose* actions; only this service can *approve* them. No request from the agent should be able to reach `payment_mandates` without passing through an approved cart mandate first.
 
+**Conventions:** all JSON (requests and responses) is `snake_case`. Enum values are lowercase (`active`, `pending_approval`, …). Errors are `application/problem+json` with a `detail` field. Money is a JSON number with 2 decimal places. The interactive contract is served at `/docs` (OpenAPI at `/v3/api-docs`).
+
 ---
 
 ## Auth
@@ -76,13 +78,14 @@ Remove an item from the queue before a cycle consumes it.
 ## Cart Mandate
 
 ### `POST /cart-mandates`
-Propose a cart (agent sends items + quantities). **This is where guardrail logic lives.** Looks up the caller's active intent mandate and checks, in order:
-1. Category compliance
-2. Per-order cap
-3. Cumulative monthly spend (against `monthly_cap`)
-4. Escalation threshold — if the cart stays within `monthly_cap` but *(already-paid spend this period + this cart's total)* ≥ `escalation_threshold_pct`% of `monthly_cap` → `pending_approval` instead of `approved`
+Propose a cart (agent sends items + quantities). **This is where guardrail logic lives.** The `intent_mandate_id` is passed in the body and must be the caller's own **active** mandate (404 if it isn't theirs, 409 if it is expired or revoked). An unknown `catalog_id` is a `400`. Checks, in order, and the first failure wins:
+1. Category compliance — every item's category matches the mandate's → else `rejected: outside allowed category`
+2. Stock — no item is `out_of_stock` → else `rejected: item out of stock: <name>`
+3. Per-order cap — cart total ≤ `per_order_cap` → else `rejected: exceeds per-order cap`
+4. Cumulative monthly spend — *(already-paid this period + cart total)* ≤ `monthly_cap` → else `rejected: exceeds monthly cap`
+5. Escalation threshold — if still within `monthly_cap` but *(already-paid + cart total)* ≥ `escalation_threshold_pct`% of `monthly_cap` → `pending_approval` (`reason: near monthly cap — requires approval`) instead of `approved`
 
-Steps 3–4 and the resulting status decision run under a row lock on the parent intent mandate, so concurrent proposals can't both slip past the cap.
+Checks 4–5 and the resulting status decision run under a row lock on the parent intent mandate, so concurrent proposals can't both slip past the cap.
 
 Writes an `audit_log` entry for the outcome (`event: approved` / `rejected` / `awaiting_approval`).
 
@@ -95,7 +98,7 @@ Writes an `audit_log` entry for the outcome (`event: approved` / `rejected` / `a
 {
   "status": "approved" | "rejected" | "pending_approval",
   "cart_mandate_id": "...",
-  "reason": null | "exceeds monthly cap" | "outside allowed category" | "near monthly cap — requires approval",
+  "reason": null | "outside allowed category" | "item out of stock: ..." | "exceeds per-order cap" | "exceeds monthly cap" | "near monthly cap — requires approval",
   "total_amount": 0.00,
   "remaining_monthly_budget": 0.00,
   "requires_confirmation": true | false
