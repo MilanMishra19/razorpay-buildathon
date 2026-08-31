@@ -1,0 +1,16 @@
+# Normalize line endings: store LF in the repo, let Git convert on checkout.
+* text=auto eol=lf
+
+# Binary files — never touch these.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.jar binary
+*.woff binary
+*.woff2 binary
+
+# Windows-only scripts stay CRLF.
+*.cmd text eol=crlf
+*.bat text eol=crlf
