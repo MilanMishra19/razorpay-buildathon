@@ -123,19 +123,21 @@ Resolve a cart sitting in `pending_approval`. The user explicitly approves or de
 ## Payment Mandate
 
 ### `POST /payment-mandates`
-Execute payment for an approved cart. **Only callable if the referenced cart mandate's status is `approved`** — this is the checkpoint that guarantees no payment can happen without a validated, approved cart behind it. Calls Razorpay's test-mode Orders API. Writes an `audit_log` entry (`event: paid`).
+Execute payment for an approved cart. **Only callable if the referenced cart mandate's status is `approved`** (else `409`) — this is the checkpoint that guarantees no payment can happen without a validated, approved cart behind it. A cart that already has a payment row also returns `409` (use `/retry`). Creates an order via Razorpay's test-mode Orders API. Writes an `audit_log` entry (`event: paid`).
+
+**Razorpay config:** set `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` for the real test-mode API. With no key set the service uses a **stub** that returns a synthetic `order_stub_…` id and succeeds — so the demo runs without credentials. `RAZORPAY_FORCE_FAILURE=true` makes the stub fail every attempt (for demoing the failure/retry path).
 
 **Request:** `cart_mandate_id`, optional `idempotency_key`
 
-**Response:** `{ payment_mandate_id, razorpay_order_id, payment_status, amount, paid_at }`
+**Response** (`201`): `{ payment_mandate_id, cart_mandate_id, razorpay_order_id, payment_status, amount, paid_at }` — `razorpay_order_id` and `paid_at` are `null` while `payment_status` is `failed`.
 
-Writes `audit_log: paid` on success, or `audit_log: failed` if the Razorpay call fails — a failed payment must be visible in the audit trail, not silently dropped. A failed payment does not count toward `monthly_cap` usage (see cumulative spend calculation above).
+Writes `audit_log: paid` on success, or `audit_log: failed` (with the failure reason) if the order call fails — a failed payment must be visible in the audit trail, not silently dropped. The row is persisted either way so it can be retried. A failed payment does not count toward `monthly_cap` usage (see cumulative spend calculation above).
 
 ### `GET /payment-mandates/{id}`
 Get payment status — reflects Razorpay's confirmation.
 
 ### `POST /payment-mandates/{id}/retry`
-Retry a `failed` payment against the same already-approved cart mandate — no new cart proposal or re-validation needed, since the cart was already approved. Writes `audit_log: paid` on success or another `audit_log: failed` entry on repeat failure.
+Retry a `failed` payment (else `409`) against the same already-approved cart mandate — no new cart proposal or re-validation, since the cart was already approved. **Updates the same payment row in place** (the `UNIQUE(cart_mandate_id)` constraint means there is never a second row); writes `audit_log: paid` on success or another `audit_log: failed` entry on repeat failure.
 
 ---
 

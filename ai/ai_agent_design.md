@@ -38,10 +38,11 @@ Before anything is sent to Spring Boot's `POST /cart-mandates`, FastAPI:
 2. Independently recomputes the cart total from real catalog prices — never trusts the LLM's own arithmetic
 3. Forwards the resulting cart to Spring Boot, which performs the actual guardrail enforcement (category, per-order cap, monthly cap, escalation threshold) regardless of what the LLM intended or claimed
 4. Records the cycle to `POST /agent-runs` — the assembled prompt, the raw model response (verbatim, pre-validation), the heuristic's flagged entries, the parsed cart, and the resulting `cart_mandate_id`. This row is what the Catalog View reads to show "what the poisoned entry said" beside "what the agent actually did."
+5. Acts on the outcome: if Spring Boot returns `approved`, the agent immediately calls `POST /payment-mandates` for that cart. If it returns `pending_approval`, the agent stops — payment for that cart happens only after the user approves it in the Pending Approvals inbox (the frontend calls `/resolve` then `/payment-mandates`). If it returns `rejected`, the cycle ends with nothing purchased.
 
 This is the literal implementation of "bounded and gated": nothing the LLM produces is trusted, everything is independently checked.
 
-**Calling the Spring Boot API:** every request the agent makes (`GET /catalog`, `GET /intent-mandates/active`, `GET /restock-list`, `POST /cart-mandates`, `POST /agent-runs`) carries the shared `X-Service-Token` and `X-On-Behalf-Of: {user_id}` headers. The agent never holds a user JWT.
+**Calling the Spring Boot API:** every request the agent makes (`GET /catalog`, `GET /intent-mandates/active`, `GET /restock-list`, `POST /cart-mandates`, `POST /payment-mandates`, `POST /agent-runs`) carries the shared `X-Service-Token` and `X-On-Behalf-Of: {user_id}` headers. The agent never holds a user JWT.
 
 ---
 

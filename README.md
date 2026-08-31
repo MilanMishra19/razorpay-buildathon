@@ -46,7 +46,7 @@ Environment:
 
 | Service | Vars |
 |---|---|
-| `aethis` | `DB_URL`, `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `AGENT_SERVICE_TOKEN` |
+| `aethis` | `DB_URL`, `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`, `AGENT_SERVICE_TOKEN`; optional `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` (a stub is used when unset), `RAZORPAY_FORCE_FAILURE` |
 | `ai` | `CHECKOUT_API_URL`, `AGENT_SERVICE_TOKEN`, `ANTHROPIC_API_KEY` |
 | `frontend` | `VITE_CHECKOUT_API_URL`, `VITE_AGENT_API_URL` |
 

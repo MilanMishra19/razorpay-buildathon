@@ -35,7 +35,7 @@ The only screen with real user *actions*, not just display. This is where the es
 
 **Behavior:** auto-refreshes via polling (~every 3–5s) against `GET /cart-mandates?status=pending_approval` (user derived from the token), so a new pending cart appears without a manual refresh.
 
-**Actions:** `POST /cart-mandates/{id}/resolve` with `decision: approve | decline`
+**Actions:** `POST /cart-mandates/{id}/resolve` with `decision: approve | decline`. On **approve**, follow up with `POST /payment-mandates` for that cart so the approved purchase actually goes through (a declined cart stops there).
 
 ---
 
