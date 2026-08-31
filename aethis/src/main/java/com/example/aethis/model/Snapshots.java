@@ -10,6 +10,18 @@ public final class Snapshots {
     private Snapshots() {
     }
 
+    public static Map<String, Object> of(PaymentMandate payment) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("id", payment.getId());
+        snapshot.put("userId", payment.getUserId());
+        snapshot.put("cartMandateId", payment.getCartMandateId());
+        snapshot.put("razorpayOrderId", payment.getRazorpayOrderId());
+        snapshot.put("amount", payment.getAmount().toPlainString());
+        snapshot.put("paymentStatus", payment.getPaymentStatus().name());
+        snapshot.put("paidAt", payment.getPaidAt() == null ? null : payment.getPaidAt().toString());
+        return snapshot;
+    }
+
     public static Map<String, Object> of(CartMandate cart) {
         List<Map<String, Object>> items = new ArrayList<>();
         for (CartItem item : cart.getCartItems()) {

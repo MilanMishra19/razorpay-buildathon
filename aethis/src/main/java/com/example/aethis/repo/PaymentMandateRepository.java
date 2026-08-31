@@ -11,6 +11,8 @@ public interface PaymentMandateRepository extends JpaRepository<PaymentMandate, 
 
     Optional<PaymentMandate> findByCartMandateId(Long cartMandateId);
 
+    Optional<PaymentMandate> findByIdAndUserId(Long id, Long userId);
+
     Optional<PaymentMandate> findByIdempotencyKey(String idempotencyKey);
 
     @Query("""
