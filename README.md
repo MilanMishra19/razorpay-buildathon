@@ -27,11 +27,11 @@ A user issues an **intent mandate** ("keep milk, bread, eggs stocked; ₹X per o
 ## Running (target)
 
 ```bash
-# infra
-docker compose up -d db                       # Postgres
+# infra — Postgres 17 on host port 55432 (avoids clashing with a local install on 5432)
+docker compose up -d
 
-# checkout API
-cd aethis && ./mvnw spring-boot:run           # :8080
+# checkout API — :8080, OpenAPI UI at /docs
+cd aethis && ./mvnw spring-boot:run
 
 # agent
 cd ai && uvicorn app.main:app --reload        # :8000
@@ -39,6 +39,8 @@ cd ai && uvicorn app.main:app --reload        # :8000
 # frontend
 cd frontend && npm install && npm run dev     # :5173
 ```
+
+The backend defaults to `jdbc:postgresql://localhost:55432/aethis` (user/pass `aethis`/`aethis`); override with `DB_URL` / `DB_USER` / `DB_PASSWORD`. Flyway applies the schema and seeds the catalog on first boot. `./mvnw test` runs against in-memory H2 and needs no database.
 
 Environment:
 
