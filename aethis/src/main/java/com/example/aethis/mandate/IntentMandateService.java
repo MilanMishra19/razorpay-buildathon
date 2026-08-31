@@ -11,6 +11,7 @@ import com.example.aethis.model.IntentMandate;
 import com.example.aethis.model.MandateStatus;
 import com.example.aethis.model.Snapshots;
 import com.example.aethis.repo.IntentMandateRepository;
+import com.example.aethis.repo.PaymentMandateRepository;
 import com.example.aethis.web.ApiException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,10 +25,13 @@ public class IntentMandateService {
     private static final BigDecimal DEFAULT_ESCALATION_THRESHOLD_PCT = new BigDecimal("90");
 
     private final IntentMandateRepository mandates;
+    private final PaymentMandateRepository payments;
     private final AuditService auditService;
 
-    public IntentMandateService(IntentMandateRepository mandates, AuditService auditService) {
+    public IntentMandateService(IntentMandateRepository mandates, PaymentMandateRepository payments,
+                                AuditService auditService) {
         this.mandates = mandates;
+        this.payments = payments;
         this.auditService = auditService;
     }
 
@@ -58,14 +62,18 @@ public class IntentMandateService {
         auditService.record(userId, AuditType.INTENT_MANDATE, mandate.getId(),
                 AuditEvent.ISSUED, null, Snapshots.of(mandate));
 
-        return MandateResponse.of(mandate);
+        return withSpend(mandate);
     }
 
     @Transactional(readOnly = true)
     public MandateResponse activeFor(Long userId) {
         return mandates.findByUserIdAndStatus(userId, MandateStatus.ACTIVE)
-                .map(MandateResponse::of)
+                .map(this::withSpend)
                 .orElseThrow(() -> ApiException.notFound("No active mandate for this user"));
+    }
+
+    private MandateResponse withSpend(IntentMandate mandate) {
+        return MandateResponse.of(mandate, payments.totalPaidForMandate(mandate.getId()));
     }
 
     @Transactional
@@ -82,6 +90,6 @@ public class IntentMandateService {
         auditService.record(userId, AuditType.INTENT_MANDATE, mandate.getId(),
                 AuditEvent.REVOKED, "Revoked by user", Snapshots.of(mandate));
 
-        return MandateResponse.of(mandate);
+        return withSpend(mandate);
     }
 }

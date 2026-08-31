@@ -33,17 +33,19 @@ public class AuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(@NonNull HttpServletRequest request,
                                     @NonNull HttpServletResponse response,
                                     @NonNull FilterChain chain) throws ServletException, IOException {
-        Long userId;
+        Resolved resolved;
         try {
-            userId = resolveUserId(request);
+            resolved = resolveUserId(request);
         } catch (ServiceAuthException e) {
             response.sendError(e.status, e.getMessage());
             return;
         }
 
-        if (userId != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            var authorities = List.of(new SimpleGrantedAuthority("ROLE_USER"));
-            var authentication = new UsernamePasswordAuthenticationToken(userId, null, authorities);
+        if (resolved != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            var authorities = resolved.service()
+                    ? List.of(new SimpleGrantedAuthority("ROLE_USER"), new SimpleGrantedAuthority("ROLE_SERVICE"))
+                    : List.of(new SimpleGrantedAuthority("ROLE_USER"));
+            var authentication = new UsernamePasswordAuthenticationToken(resolved.userId(), null, authorities);
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
             SecurityContextHolder.getContext().setAuthentication(authentication);
         }
@@ -51,7 +53,7 @@ public class AuthenticationFilter extends OncePerRequestFilter {
         chain.doFilter(request, response);
     }
 
-    private Long resolveUserId(HttpServletRequest request) {
+    private Resolved resolveUserId(HttpServletRequest request) {
         String presentedServiceToken = request.getHeader(SERVICE_TOKEN_HEADER);
         if (StringUtils.hasText(presentedServiceToken)) {
             if (!presentedServiceToken.equals(serviceToken)) {
@@ -62,7 +64,7 @@ public class AuthenticationFilter extends OncePerRequestFilter {
                 throw new ServiceAuthException(HttpServletResponse.SC_BAD_REQUEST, "Missing " + ON_BEHALF_OF_HEADER);
             }
             try {
-                return Long.valueOf(onBehalfOf.trim());
+                return new Resolved(Long.valueOf(onBehalfOf.trim()), true);
             } catch (NumberFormatException e) {
                 throw new ServiceAuthException(HttpServletResponse.SC_BAD_REQUEST, "Malformed " + ON_BEHALF_OF_HEADER);
             }
@@ -71,12 +73,15 @@ public class AuthenticationFilter extends OncePerRequestFilter {
         String authorization = request.getHeader("Authorization");
         if (StringUtils.hasText(authorization) && authorization.startsWith("Bearer ")) {
             try {
-                return jwtService.parseUserId(authorization.substring(7).trim());
+                return new Resolved(jwtService.parseUserId(authorization.substring(7).trim()), false);
             } catch (Exception ignored) {
                 return null;
             }
         }
         return null;
+    }
+
+    private record Resolved(Long userId, boolean service) {
     }
 
     private static final class ServiceAuthException extends RuntimeException {

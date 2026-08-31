@@ -12,18 +12,22 @@ public record MandateResponse(
         BigDecimal perOrderCap,
         BigDecimal monthlyCap,
         BigDecimal escalationThresholdPct,
+        BigDecimal spentThisPeriod,
+        BigDecimal remainingMonthlyBudget,
         Instant issuedAt,
         Instant expiresAt,
         MandateStatus status,
         String mandateHash) {
 
-    public static MandateResponse of(IntentMandate mandate) {
+    public static MandateResponse of(IntentMandate mandate, BigDecimal spentThisPeriod) {
         return new MandateResponse(
                 mandate.getId(),
                 mandate.getCategory(),
                 mandate.getPerOrderCap(),
                 mandate.getMonthlyCap(),
                 mandate.getEscalationThresholdPct(),
+                spentThisPeriod,
+                mandate.getMonthlyCap().subtract(spentThisPeriod),
                 mandate.getIssuedAt(),
                 mandate.getExpiresAt(),
                 mandate.getStatus(),
