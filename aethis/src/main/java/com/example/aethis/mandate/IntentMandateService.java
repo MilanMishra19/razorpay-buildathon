@@ -1,6 +1,7 @@
 package com.example.aethis.mandate;
 
 import com.example.aethis.audit.AuditService;
+import com.example.aethis.common.Money;
 import com.example.aethis.hash.Hashing;
 import com.example.aethis.mandate.dto.IssueMandateRequest;
 import com.example.aethis.mandate.dto.MandateResponse;
@@ -15,7 +16,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Instant;
 
 @Service
@@ -44,9 +44,9 @@ public class IntentMandateService {
         IntentMandate mandate = new IntentMandate();
         mandate.setUserId(userId);
         mandate.setCategory(request.category().trim().toLowerCase());
-        mandate.setPerOrderCap(money(request.perOrderCap()));
-        mandate.setMonthlyCap(money(request.monthlyCap()));
-        mandate.setEscalationThresholdPct(money(escalationThresholdPct));
+        mandate.setPerOrderCap(Money.normalize(request.perOrderCap()));
+        mandate.setMonthlyCap(Money.normalize(request.monthlyCap()));
+        mandate.setEscalationThresholdPct(Money.normalize(escalationThresholdPct));
         mandate.setIssuedAt(Instant.now());
         mandate.setExpiresAt(request.expiresAt());
         mandate.setStatus(MandateStatus.ACTIVE);
@@ -59,10 +59,6 @@ public class IntentMandateService {
                 AuditEvent.ISSUED, null, Snapshots.of(mandate));
 
         return MandateResponse.of(mandate);
-    }
-
-    private static BigDecimal money(BigDecimal value) {
-        return value.setScale(2, RoundingMode.HALF_UP);
     }
 
     @Transactional(readOnly = true)
