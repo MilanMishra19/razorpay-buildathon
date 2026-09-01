@@ -16,6 +16,7 @@ public final class Snapshots {
         snapshot.put("userId", payment.getUserId());
         snapshot.put("cartMandateId", payment.getCartMandateId());
         snapshot.put("razorpayOrderId", payment.getRazorpayOrderId());
+        snapshot.put("razorpayPaymentId", payment.getRazorpayPaymentId());
         snapshot.put("amount", payment.getAmount().toPlainString());
         snapshot.put("paymentStatus", payment.getPaymentStatus().name());
         snapshot.put("paidAt", payment.getPaidAt() == null ? null : payment.getPaidAt().toString());

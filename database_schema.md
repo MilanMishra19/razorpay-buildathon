@@ -89,7 +89,8 @@ The executed transaction — only created for cart mandates that passed validati
 | `user_id` | UUID / BIGINT | **FK → users.id**, NOT NULL | denormalized — see `cart_mandates.user_id` |
 | `cart_mandate_id` | UUID / BIGINT | **FK → cart_mandates.id**, NOT NULL, UNIQUE | the approved cart that authorized this payment |
 | `idempotency_key` | VARCHAR | UNIQUE, NULLABLE | client-supplied on `POST /payment-mandates`; guards against a double click charging twice |
-| `razorpay_order_id` | VARCHAR | NOT NULL | reference from Razorpay's test-mode Orders API |
+| `razorpay_order_id` | VARCHAR | NOT NULL | the order created up front. **An order is not a payment** — it only says what is owed |
+| `razorpay_payment_id` | VARCHAR | NULLABLE | set only once Razorpay's HMAC over `order_id\|payment_id` verifies server-side. Its presence is the proof money actually moved |
 | `amount` | DECIMAL | NOT NULL | |
 | `payment_status` | VARCHAR | NOT NULL | `created` \| `paid` \| `failed` |
 | `paid_at` | TIMESTAMP | NULLABLE | populated once payment confirms |

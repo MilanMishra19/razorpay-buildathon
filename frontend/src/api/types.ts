@@ -95,6 +95,8 @@ export interface PaymentMandate {
   payment_mandate_id: number;
   cart_mandate_id: number;
   razorpay_order_id: string | null;
+  razorpay_payment_id: string | null;
+  razorpay_key_id: string | null;
   payment_status: PaymentStatus;
   amount: number;
   paid_at: string | null;

@@ -128,13 +128,25 @@ Resolve a cart sitting in `pending_approval`. The user explicitly approves or de
 ### `POST /payment-mandates`
 Execute payment for an approved cart. **Only callable if the referenced cart mandate's status is `approved`** (else `409`) — this is the checkpoint that guarantees no payment can happen without a validated, approved cart behind it. A cart that already has a payment row also returns `409` (use `/retry`). Creates an order via Razorpay's test-mode Orders API. Writes an `audit_log` entry (`event: paid`).
 
-**Razorpay config:** set `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` for the real test-mode API. With no key set the service uses a **stub** that returns a synthetic `order_stub_…` id and succeeds — so the demo runs without credentials. `RAZORPAY_FORCE_FAILURE=true` makes the stub fail every attempt (for demoing the failure/retry path).
+**Razorpay config:** set `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` for the real test-mode API. With no key set the service uses a **stub** that returns a synthetic `order_stub_…` id — so the demo runs without credentials. `RAZORPAY_FORCE_FAILURE=true` makes the stub fail every attempt (for demoing the failure/retry path).
+
+**An order is not a payment.** With real credentials the response comes back `created`, never `paid`: the money has not moved and the amount does **not** count against `monthly_cap`. Settling it needs a browser to complete Razorpay Checkout and the server to verify the signature (`/confirm` below). The stub cannot open a checkout, so it settles immediately — which is what keeps the credential-free demo working.
 
 **Request:** `cart_mandate_id`, optional `idempotency_key`
 
 **Response** (`201`): `{ payment_mandate_id, cart_mandate_id, razorpay_order_id, payment_status, amount, paid_at }` — `razorpay_order_id` and `paid_at` are `null` while `payment_status` is `failed`.
 
 Writes `audit_log: paid` on success, or `audit_log: failed` (with the failure reason) if the order call fails — a failed payment must be visible in the audit trail, not silently dropped. The row is persisted either way so it can be retried. A failed payment does not count toward `monthly_cap` usage (see cumulative spend calculation above).
+
+### `POST /payment-mandates/{id}/confirm`
+Settles a `created` payment against Razorpay's signed callback from Checkout.
+
+**Request:** `razorpay_order_id`, `razorpay_payment_id`, `razorpay_signature`
+
+The server recomputes `HMAC_SHA256(order_id + "|" + payment_id, key_secret)` and compares it in constant time. Only that decides the outcome — the browser's claim is never taken at face value. A mismatched signature returns the payment as `failed` with `audit_log: failed` (returned rather than thrown, so recording the rejection is not rolled back with the transaction). An order id that does not belong to this payment is a `400` before any signature work. Confirming an already-paid payment is a no-op, so a double callback cannot double-count.
+
+### `GET /payment-mandates/awaiting-checkout`
+Payments sitting in `created` — orders the agent raised that still need a human to complete checkout. This is what the dashboard's Awaiting Checkout panel reads.
 
 ### `GET /payment-mandates/{id}`
 Get payment status — reflects Razorpay's confirmation.

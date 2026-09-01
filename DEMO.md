@@ -43,8 +43,17 @@ Press **RUN AGENT**.
 > "One LLM call. It reads the mandate, the restock list and the catalog, and returns a cart —
 > nothing else. Everything before and after that call is ordinary code."
 
-The cycle completes: cart approved, payment paid. Move to **Timeline** and read the events out.
-Each line is why something happened, not just that it did.
+The cycle completes and the cart is approved — but look at **Awaiting Checkout**. The agent raised a
+real Razorpay order; it did not pay. The budget still reads zero.
+
+> "An order is not a payment. The agent can get all the way to the checkout, and no further — money
+> moves only when a human completes it and the server verifies Razorpay's signature."
+
+Press **COMPLETE PAYMENT**. Razorpay Checkout opens for real; pay with test card
+`4111 1111 1111 1111`, any future expiry, any CVV. On success the browser hands back a payment id and
+a signature, the server recomputes the HMAC, and only then does the spend appear against the cap.
+
+Move to **Timeline** and read the events out. Each line is why something happened, not just that it did.
 
 ## 3 · The listing that fights back  (120s)
 

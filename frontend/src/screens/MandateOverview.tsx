@@ -8,12 +8,14 @@ import type {
   AuditEntry,
   CartMandate,
   CatalogItem,
+  PaymentMandate,
   ChainVerification,
   Mandate,
   RestockEntry,
 } from '../api/types';
 import { loadActiveMandates, loadCategories, mandateFor, titleCase } from '../api/mandates';
 import { BudgetMeter } from '../components/BudgetMeter';
+import { AwaitingCheckout } from '../components/AwaitingCheckout';
 import { CategoryTabs } from '../components/CategoryTabs';
 import { Button, Chip, Empty, Icon, Notice, Panel, clockTime, daysUntil, eventColor, money } from '../components/ui';
 
@@ -28,6 +30,11 @@ export function MandateOverview() {
   const demo = useResource<{ enabled: boolean }>((token) => api.checkout('/demo/status', token), []);
   const carts = useResource<CartMandate[]>((token) => api.checkout('/cart-mandates', token), []);
   const catalog = useResource<CatalogItem[]>((token) => api.checkout('/catalog', token), []);
+  const awaiting = useResource<PaymentMandate[]>(
+    (token) => api.checkout('/payment-mandates/awaiting-checkout', token),
+    [],
+    6000,
+  );
 
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState<AgentRunResult | null>(null);
@@ -40,6 +47,7 @@ export function MandateOverview() {
     chain.reload();
     restock.reload();
     carts.reload();
+    awaiting.reload();
   }
 
   async function runAgent(forCategory: string) {
@@ -184,6 +192,13 @@ export function MandateOverview() {
             </div>
           </div>
         </Panel>
+
+        <AwaitingCheckout
+          payments={awaiting.data ?? []}
+          token={session.token}
+          email={session.email}
+          onSettled={refreshAll}
+        />
 
         {runError && <Notice tone="bad">Agent: {runError}</Notice>}
         {runResult && <RunSummary result={runResult} />}

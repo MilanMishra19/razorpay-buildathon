@@ -37,6 +37,9 @@ public class PaymentMandate {
     @Column(name = "razorpay_order_id", nullable = false)
     private String razorpayOrderId;
 
+    @Column(name = "razorpay_payment_id")
+    private String razorpayPaymentId;
+
     @Column(nullable = false)
     private BigDecimal amount;
 
