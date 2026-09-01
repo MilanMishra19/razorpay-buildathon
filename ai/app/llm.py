@@ -83,7 +83,9 @@ class Decider(Protocol):
         instruction: str,
     ) -> Decision: ...
 
-    def classify(self, system: str, message: str, schema: dict) -> str: ...
+    def classify(
+        self, system: str, message: str, schema: dict, history: list[dict] | None = None
+    ) -> str: ...
 
 
 class MissingApiKey(RuntimeError):
@@ -121,7 +123,7 @@ class GeminiDecider:
         raw = self._generate(client, user_content, config)
         return Decision(parse_cart(raw), full_prompt(user_content), raw)
 
-    def classify(self, system: str, message: str, schema: dict) -> str:
+    def classify(self, system, message, schema, history=None) -> str:
         if not self._api_key:
             raise MissingApiKey("GOOGLE_API_KEY is not configured")
 
@@ -136,7 +138,7 @@ class GeminiDecider:
             max_output_tokens=512,
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
         )
-        return self._generate(client, message, config)
+        return self._generate(client, as_transcript(history, message), config)
 
     def _generate(self, client, user_content: str, config) -> str:
         last_error: Exception | None = None
@@ -196,7 +198,7 @@ class GroqDecider:
         raw = self._generate(payload)
         return Decision(parse_cart(raw), full_prompt(user_content), raw)
 
-    def classify(self, system: str, message: str, schema: dict) -> str:
+    def classify(self, system, message, schema, history=None) -> str:
         if not self._api_key:
             raise MissingApiKey("GROQ_API_KEY is not configured")
 
@@ -206,6 +208,7 @@ class GroqDecider:
             "max_completion_tokens": 512,
             "messages": [
                 {"role": "system", "content": system},
+                *recent_turns(history),
                 {"role": "user", "content": message},
             ],
             "response_format": {
@@ -296,7 +299,7 @@ class OfflineDecider:
         prompt = full_prompt(build_user_content(instruction, mandate, entries, items))
         return Decision(lines, f"{prompt}\n\n[offline decider: no model was called]", raw)
 
-    def classify(self, system: str, message: str, schema: dict) -> str:
+    def classify(self, system, message, schema, history=None) -> str:
         """
         Keyword matching, so the chat panel still understands the common asks when no model is
         reachable. It reads intent only — it never fills in an amount the user did not say.
@@ -337,6 +340,30 @@ class OfflineDecider:
         return min(candidates, key=lambda item: abs(item.price - missing.price), default=None)
 
 
+TURN_MEMORY = 6
+
+
+def recent_turns(history: list[dict] | None) -> list[dict]:
+    """
+    Enough thread for "make it 800" to have an antecedent, not so much that an old message keeps
+    steering a new question.
+    """
+    if not history:
+        return []
+    turns = [
+        {"role": "assistant" if turn.get("role") == "assistant" else "user", "content": turn.get("content", "")}
+        for turn in history[-TURN_MEMORY:]
+        if turn.get("content")
+    ]
+    return turns
+
+
+def as_transcript(history: list[dict] | None, message: str) -> str:
+    lines = [f"{turn['role']}: {turn['content']}" for turn in recent_turns(history)]
+    lines.append(f"user: {message}")
+    return "\n".join(lines)
+
+
 def is_transient(exc: Exception) -> bool:
     status = getattr(exc, "code", None) or getattr(exc, "status_code", None)
     if status in TRANSIENT_STATUSES:
@@ -361,11 +388,11 @@ class FallbackDecider:
             decision.degraded = str(exc)
             return decision
 
-    def classify(self, system: str, message: str, schema: dict) -> str:
+    def classify(self, system, message, schema, history=None) -> str:
         try:
-            return self._primary.classify(system, message, schema)
+            return self._primary.classify(system, message, schema, history)
         except (DeciderUnavailable, MissingApiKey):
-            return self._backup.classify(system, message, schema)
+            return self._backup.classify(system, message, schema, history)
 
 
 PRIMARY_DECIDERS = {"gemini": GeminiDecider, "groq": GroqDecider}

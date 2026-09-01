@@ -14,6 +14,7 @@ from .models import (
     ChatReply,
     ChatRequest,
     ConfirmMandateRequest,
+    MandateProposal,
     RunReport,
     RunRequest,
 )
@@ -85,28 +86,108 @@ async def talk(request: ChatRequest) -> ChatReply:
     """
     checkout = app.state.checkout
     try:
-        intent = conversation.extract_intent(app.state.decider, request.message)
+        intent = conversation.extract_intent(
+            app.state.decider, request.message, [turn.model_dump() for turn in request.history]
+        )
     except (MissingApiKey, DeciderUnavailable) as exc:
         return conversation.unavailable(exc)
 
     kind = intent.get("intent", "unknown")
 
     try:
-        if kind == "create_mandate":
+        if kind in ("create_mandate", "modify_mandate"):
             categories = await checkout.categories(request.user_id)
+            draft = request.pending_proposal
             category = conversation.match_category(intent.get("category"), categories)
+            if category is None and draft is not None:
+                category = draft.category
+            if category is None and kind == "modify_mandate":
+                active = await checkout.active_mandates(request.user_id)
+                category = active[0].category if len(active) == 1 else None
             if category is None:
                 return ChatReply(
                     reply=conversation.ask_which_category(intent.get("category"), categories),
                     intent="needs_category",
+                    suggestions=conversation.suggestions_for("needs_category"),
                 )
+
+            if draft is None and kind == "modify_mandate":
+                existing = next(
+                    (m for m in await checkout.active_mandates(request.user_id) if m.category == category),
+                    None,
+                )
+                if existing is not None:
+                    draft = MandateProposal(
+                        category=existing.category,
+                        standing_instruction=existing.standing_instruction or settings.default_instruction,
+                        per_order_cap=existing.per_order_cap,
+                        monthly_cap=existing.monthly_cap,
+                        escalation_threshold_pct=existing.escalation_threshold_pct,
+                    )
+
             proposal, assumed = conversation.propose_mandate(
-                intent, category, settings.default_instruction
+                intent, category, settings.default_instruction, draft
             )
             return ChatReply(
                 reply=conversation.describe_proposal(proposal, assumed),
-                intent=kind,
+                intent="create_mandate",
                 proposal=proposal,
+                suggestions=conversation.suggestions_for("create_mandate", has_proposal=True),
+            )
+
+        if kind == "list_queue":
+            entries = await checkout.restock_list(request.user_id)
+            return ChatReply(
+                reply=conversation.describe_queue(entries),
+                intent=kind,
+                suggestions=conversation.suggestions_for(kind),
+            )
+
+        if kind == "what_can_you_buy":
+            catalog = await checkout.catalog(request.user_id)
+            return ChatReply(
+                reply=conversation.describe_catalog(catalog),
+                intent=kind,
+                suggestions=conversation.suggestions_for(kind),
+            )
+
+        if kind == "control_autopilot":
+            wanted_on = bool(intent.get("turn_on"))
+            state = app.state.autopilot.configure(wanted_on, request.user_id)
+            return ChatReply(
+                reply=conversation.describe_autopilot(state, wanted_on),
+                intent=kind,
+                suggestions=conversation.suggestions_for(kind),
+            )
+
+        if kind == "explain_omission":
+            catalog = await checkout.catalog(request.user_id)
+            item = conversation.match_item(intent.get("item"), catalog)
+            if item is None:
+                return ChatReply(
+                    reply=(
+                        f'I could not find "{intent.get("item")}" in this catalog, so it was '
+                        f"never something I could have bought."
+                    ),
+                    intent=kind,
+                    suggestions=conversation.suggestions_for(kind),
+                )
+            entries = await checkout.restock_list(request.user_id)
+            carts = await checkout.carts(request.user_id)
+            bought = {
+                line["catalog_id"]
+                for cart in carts[:3]
+                for line in cart.get("cart_items", [])
+            }
+            return ChatReply(
+                reply=conversation.describe_omission(
+                    item,
+                    {entry.catalog_id for entry in entries},
+                    bought,
+                    await checkout.active_mandates(request.user_id),
+                ),
+                intent=kind,
+                suggestions=conversation.suggestions_for(kind),
             )
 
         if kind == "run_cycle":
@@ -117,11 +198,20 @@ async def talk(request: ChatRequest) -> ChatReply:
                 settings.default_instruction,
                 (intent.get("category") or None),
             )
-            return ChatReply(reply=summarise_run(report), intent=kind, run=report)
+            return ChatReply(
+                reply=summarise_run(report),
+                intent=kind,
+                run=report,
+                suggestions=conversation.suggestions_for(kind),
+            )
 
         if kind == "spend_status":
             mandates = await checkout.active_mandates(request.user_id)
-            return ChatReply(reply=conversation.describe_spend(mandates), intent=kind)
+            return ChatReply(
+                reply=conversation.describe_spend(mandates),
+                intent=kind,
+                suggestions=conversation.suggestions_for(kind),
+            )
 
         if kind in ("explain_pending", "explain_last"):
             wanted = "pending_approval" if kind == "explain_pending" else None
@@ -140,6 +230,7 @@ async def talk(request: ChatRequest) -> ChatReply:
                 reply=conversation.describe_policy(cart, names),
                 intent=kind,
                 cart_mandate_id=cart["id"],
+                suggestions=conversation.suggestions_for(kind),
             )
     except NoActiveMandate as exc:
         return ChatReply(reply=str(exc), intent=kind)
@@ -154,6 +245,19 @@ async def confirm(request: ConfirmMandateRequest) -> ChatReply:
     """The write the conversation is not allowed to perform on its own."""
     proposal = request.proposal
     try:
+        # Only one mandate per category may be active, so changing the limits means retiring the old
+        # one. Both events land in the ledger, which is the point: authority was replaced, not edited.
+        replaced = next(
+            (
+                m
+                for m in await app.state.checkout.active_mandates(request.user_id)
+                if m.category == proposal.category
+            ),
+            None,
+        )
+        if replaced is not None:
+            await app.state.checkout.revoke_mandate(request.user_id, replaced.id)
+
         issued = await app.state.checkout.issue_mandate(request.user_id, {
             "category": proposal.category,
             "standing_instruction": proposal.standing_instruction,
@@ -165,13 +269,15 @@ async def confirm(request: ConfirmMandateRequest) -> ChatReply:
     except CheckoutError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
+    note = " The previous one was revoked, and both events are in the ledger." if replaced else ""
     return ChatReply(
         reply=(
             f"Issued. I will keep {proposal.category} stocked inside ₹{proposal.per_order_cap:,.0f} "
             f"per order and ₹{proposal.monthly_cap:,.0f} a month, and the checkout API will hold me "
-            f"to it whatever I propose. Mandate #{issued.get('id')}."
+            f"to it whatever I propose. Mandate #{issued.get('id')}.{note}"
         ),
         intent="mandate_issued",
+        suggestions=conversation.suggestions_for("mandate_issued"),
     )
 
 

@@ -87,7 +87,9 @@ escalation threshold, expiry. One active mandate per category, enforced by a par
 model reads *intent only* — a single structured extraction call. It then drafts a mandate and hands
 it back for you to issue; it cannot issue one itself. Every answer it gives about money is assembled
 from what the checkout API actually returned, so a sentence about spending cannot disagree with the
-ledger.
+ledger. It carries the thread, so "make it 800" edits the draft rather than starting over, and it
+answers the questions people actually ask — why a cart is waiting, why a named product was skipped,
+what is queued, what the merchant sells — and asks rather than guessing when a category is unclear.
 
 **3 · Autonomous cycles.** Autopilot is a switch, off by default. When on, the agent wakes on its own
 schedule and runs the same cycle the button runs — same guardrails, same escalations, same audit

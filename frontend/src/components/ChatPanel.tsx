@@ -11,6 +11,8 @@ interface Turn {
   degraded?: string | null;
 }
 
+const MEMORY = 6;
+
 const OPENERS = [
   'Keep household essentials stocked, max ₹600 per order',
   'Run my next cycle',
@@ -30,6 +32,8 @@ export function ChatPanel({ onChanged }: { onChanged: () => void }) {
   ]);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>(OPENERS);
+  const [pending, setPending] = useState<MandateProposal | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   function append(turn: Turn) {
@@ -45,10 +49,20 @@ export function ChatPanel({ onChanged }: { onChanged: () => void }) {
     try {
       const reply = await api.agent<ChatReply>(
         '/chat',
-        post({ user_id: session.userId, message: text }),
+        post({
+          user_id: session.userId,
+          message: text,
+          history: turns.slice(-MEMORY).map((turn) => ({
+            role: turn.who === 'you' ? 'user' : 'assistant',
+            content: turn.text,
+          })),
+          pending_proposal: pending,
+        }),
       );
       append({ who: 'aethis', text: reply.reply, proposal: reply.proposal, degraded: reply.degraded });
-      if (reply.intent === 'run_cycle') onChanged();
+      setPending(reply.proposal ?? null);
+      setSuggestions(reply.suggestions ?? []);
+      if (reply.intent === 'run_cycle' || reply.intent === 'control_autopilot') onChanged();
     } catch (error) {
       append({ who: 'aethis', text: (error as Error).message });
     } finally {
@@ -64,6 +78,8 @@ export function ChatPanel({ onChanged }: { onChanged: () => void }) {
         post({ user_id: session.userId, proposal }),
       );
       append({ who: 'aethis', text: reply.reply });
+      setPending(null);
+      setSuggestions(reply.suggestions ?? []);
       onChanged();
     } catch (error) {
       append({ who: 'aethis', text: (error as Error).message });
@@ -124,12 +140,12 @@ export function ChatPanel({ onChanged }: { onChanged: () => void }) {
         <div ref={endRef} />
       </div>
 
-      {turns.length <= 1 && (
+      {suggestions.length > 0 && !busy && (
         <div style={{ padding: '0 18px 12px', display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-          {OPENERS.map((opener) => (
+          {suggestions.map((suggestion) => (
             <button
-              key={opener}
-              onClick={() => send(opener)}
+              key={suggestion}
+              onClick={() => send(suggestion)}
               style={{
                 border: '1px solid var(--line)',
                 borderRadius: 'var(--radius-pill)',
@@ -139,7 +155,7 @@ export function ChatPanel({ onChanged }: { onChanged: () => void }) {
                 fontSize: 11.5,
               }}
             >
-              {opener}
+              {suggestion}
             </button>
           ))}
         </div>

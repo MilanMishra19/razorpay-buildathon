@@ -83,6 +83,9 @@ class CheckoutClient:
         response = await self._request("POST", "/intent-mandates", user_id, json=body)
         return response.json()
 
+    async def revoke_mandate(self, user_id: int, mandate_id: int) -> None:
+        await self._request("POST", f"/intent-mandates/{mandate_id}/revoke", user_id, json={})
+
     async def record_run(self, user_id: int, payload: dict) -> int:
         response = await self._request("POST", "/agent-runs", user_id, json=payload)
         return response.json()["id"]

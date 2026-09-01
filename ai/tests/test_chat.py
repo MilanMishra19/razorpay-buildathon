@@ -3,12 +3,17 @@ from decimal import Decimal
 
 from app.chat import (
     ask_which_category,
+    describe_catalog,
+    describe_omission,
     describe_policy,
+    describe_queue,
     describe_proposal,
     describe_spend,
     extract_intent,
     match_category,
+    match_item,
     propose_mandate,
+    suggestions_for,
 )
 from app.models import Mandate
 
@@ -18,8 +23,9 @@ class ScriptedDecider:
         self.raw = raw
         self.seen: list[str] = []
 
-    def classify(self, system: str, message: str, schema: dict) -> str:
+    def classify(self, system, message, schema, history=None) -> str:
         self.seen.append(message)
+        self.history = history
         return self.raw
 
 
@@ -187,3 +193,88 @@ class TestAnswersComeFromData:
         cart = {"status": "approved", "cart_items": [], "policy_decision": None}
 
         assert describe_policy(cart, {}) != ""
+
+
+class Item:
+    def __init__(self, id, name, category, price, stock_status="in_stock"):
+        self.id, self.name, self.category = id, name, category
+        self.price, self.stock_status = Decimal(price), stock_status
+
+
+class Entry:
+    def __init__(self, catalog_id, catalog_name, catalog_category):
+        self.catalog_id, self.catalog_name = catalog_id, catalog_name
+        self.catalog_category = catalog_category
+
+
+CATALOG = [
+    Item(1, "Amul Toned Milk 1L", "groceries", "62"),
+    Item(8, "Brooke Bond Red Label Tea 250g", "groceries", "140", "out_of_stock"),
+    Item(20, "Gillette Mach3 Cartridges, 4 pcs", "personal care", "620"),
+]
+
+
+class TestItemMatching:
+    def test_a_partial_name_finds_the_product(self):
+        assert match_item("tea", CATALOG).id == 8
+        assert match_item("gillette", CATALOG).id == 20
+
+    def test_a_product_that_is_not_stocked_matches_nothing(self):
+        assert match_item("bicycle", CATALOG) is None
+        assert match_item(None, CATALOG) is None
+
+
+class TestExplainingAnOmission:
+    def test_something_never_queued_says_so_first(self):
+        text = describe_omission(CATALOG[0], set(), set(), [mandate()])
+
+        assert "not on your restock list" in text
+
+    def test_something_out_of_stock_says_so_rather_than_blaming_budget(self):
+        text = describe_omission(CATALOG[1], {8}, set(), [mandate()])
+
+        assert "out of stock" in text
+        assert "placeholder" in text
+
+    def test_an_item_over_the_per_order_cap_names_both_numbers(self):
+        text = describe_omission(CATALOG[2], {20}, set(), [mandate(category="personal care")])
+
+        assert "620.00" in text
+        assert "500.00" in text
+
+    def test_no_mandate_covering_the_category_is_a_lack_of_authority(self):
+        text = describe_omission(CATALOG[2], {20}, set(), [mandate(category="groceries")])
+
+        assert "no active mandate" in text
+
+    def test_something_already_bought_is_not_explained_away(self):
+        assert "was bought" in describe_omission(CATALOG[0], {1}, {1}, [mandate()])
+
+
+class TestListingState:
+    def test_the_queue_is_grouped_by_category(self):
+        text = describe_queue([
+            Entry(1, "Amul Toned Milk 1L", "groceries"),
+            Entry(12, "Vim Dishwash Bar 300g", "household"),
+        ])
+
+        assert "groceries: Amul Toned Milk 1L" in text
+        assert "household: Vim Dishwash Bar 300g" in text
+
+    def test_an_empty_queue_says_there_is_nothing_to_do(self):
+        assert "empty" in describe_queue([])
+
+    def test_the_catalog_summary_counts_stock_and_spans_price(self):
+        text = describe_catalog(CATALOG)
+
+        assert "groceries: 2 products, 1 in stock" in text
+        assert "62" in text and "140" in text
+
+
+class TestSuggestions:
+    def test_a_draft_on_the_table_offers_to_edit_it(self):
+        assert any("800" in s for s in suggestions_for("create_mandate", has_proposal=True))
+
+    def test_every_intent_offers_somewhere_to_go_next(self):
+        for intent in ["run_cycle", "spend_status", "list_queue", "explain_omission", "unknown"]:
+            assert suggestions_for(intent), intent

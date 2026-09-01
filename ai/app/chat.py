@@ -21,15 +21,22 @@ INTENT_SCHEMA = {
             "type": "string",
             "enum": [
                 "create_mandate",
+                "modify_mandate",
                 "run_cycle",
                 "explain_pending",
                 "explain_last",
+                "explain_omission",
                 "spend_status",
+                "list_queue",
+                "control_autopilot",
+                "what_can_you_buy",
                 "unknown",
             ],
         },
         "category": {"type": ["string", "null"]},
         "instruction": {"type": ["string", "null"]},
+        "item": {"type": ["string", "null"]},
+        "turn_on": {"type": ["boolean", "null"]},
         "per_order_cap": {"type": ["number", "null"]},
         "monthly_cap": {"type": ["number", "null"]},
         "escalation_threshold_pct": {"type": ["number", "null"]},
@@ -38,6 +45,8 @@ INTENT_SCHEMA = {
         "intent",
         "category",
         "instruction",
+        "item",
+        "turn_on",
         "per_order_cap",
         "monthly_cap",
         "escalation_threshold_pct",
@@ -48,26 +57,39 @@ INTENT_SCHEMA = {
 INTENT_SYSTEM = """You read one message from a person talking to their shopping agent and work out \
 what they are asking for. You do not answer them, and you never invent an amount they did not say.
 
+You are given the conversation so far. A short message refers to whatever was being discussed, so \
+read it in that light. If a mandate is being drafted and the new message only adjusts one of its \
+limits — "make it 800", "cap the month at 5000", "ask me at 70 percent" — that is modify_mandate, \
+and the limit they named goes in the matching field.
+
 intent is one of:
-- create_mandate: they are setting up or changing a standing instruction and its spending limits
+- create_mandate: they are setting up a standing instruction and its spending limits
+- modify_mandate: they want to change the limits on a mandate already being drafted or already issued
 - run_cycle: they want a shopping cycle to run now
-- explain_pending: they are asking why something is waiting for their approval
-- explain_last: they are asking what happened on the most recent cycle or purchase
+- explain_omission: they name a product and ask why it was not bought, was skipped, or was left \
+out. Any "why didn't you buy X" or "why did you skip X" is this one, whatever X is
+- explain_pending: they ask why a cart is waiting for their approval, naming no product
+- explain_last: they ask what happened on the most recent cycle, naming no product
 - spend_status: they are asking how much has been spent or what is left
+- list_queue: they are asking what is on the restock list
+- control_autopilot: they want the agent to start or stop shopping on its own
+- what_can_you_buy: they are asking what this merchant sells or stocks
 - unknown: anything else
 
 category is the shopping category they named, lowercased, or null.
 instruction is their standing instruction in their own words, or null.
+item is the product they named, whenever they name one, or null.
+turn_on is true if they want autopilot running, false if they want it stopped, null otherwise.
 The three limits are rupee amounts and a percentage they stated explicitly. If they did not say a \
 number, it is null. Never guess one."""
 
 
-def extract_intent(decider, message: str) -> dict:
+def extract_intent(decider, message: str, history: list[dict] | None = None) -> dict:
     """
     Uses whichever provider the agent already runs on. A failure here is not fatal: the caller
     falls back to asking the user to rephrase, which is better than acting on a guess.
     """
-    raw = decider.classify(INTENT_SYSTEM, message, INTENT_SCHEMA)
+    raw = decider.classify(INTENT_SYSTEM, message, INTENT_SCHEMA, history)
     try:
         payload = json.loads(raw)
     except (json.JSONDecodeError, TypeError):
@@ -122,29 +144,46 @@ def shares_root(one: str, other: str) -> bool:
 
 
 def propose_mandate(
-    intent: dict, category: str, fallback_instruction: str
+    intent: dict,
+    category: str,
+    fallback_instruction: str,
+    base: MandateProposal | None = None,
 ) -> tuple[MandateProposal, list[str]]:
     """
-    Returns the draft and the list of limits the user did not actually state. A default the user is
+    Returns the draft and the list of limits the user never actually stated. A default the user is
     not told about is a number they did not choose, on a document about their money.
+
+    `base` is a draft already on the table, so "make it 800" edits that one limit and leaves the
+    rest of the conversation intact rather than starting the whole mandate over.
     """
     assumed: list[str] = []
 
-    per_order = intent.get("per_order_cap")
-    if per_order is None:
-        per_order, _ = DEFAULT_PER_ORDER, assumed.append("per-order cap")
+    def settle(stated, carried, default, label):
+        if stated is not None:
+            return stated
+        if carried is not None:
+            return carried
+        assumed.append(label)
+        return default
 
-    monthly = intent.get("monthly_cap")
-    if monthly is None:
-        monthly, _ = DEFAULT_MONTHLY, assumed.append("monthly cap")
-
-    threshold = intent.get("escalation_threshold_pct")
-    if threshold is None:
-        threshold, _ = DEFAULT_THRESHOLD, assumed.append("check-in threshold")
+    per_order = settle(
+        intent.get("per_order_cap"), base.per_order_cap if base else None, DEFAULT_PER_ORDER, "per-order cap"
+    )
+    monthly = settle(
+        intent.get("monthly_cap"), base.monthly_cap if base else None, DEFAULT_MONTHLY, "monthly cap"
+    )
+    threshold = settle(
+        intent.get("escalation_threshold_pct"),
+        base.escalation_threshold_pct if base else None,
+        DEFAULT_THRESHOLD,
+        "check-in threshold",
+    )
 
     proposal = MandateProposal(
         category=category,
-        standing_instruction=intent.get("instruction") or fallback_instruction,
+        standing_instruction=(
+            intent.get("instruction") or (base.standing_instruction if base else None) or fallback_instruction
+        ),
         per_order_cap=per_order,
         monthly_cap=monthly,
         escalation_threshold_pct=threshold,
@@ -225,11 +264,135 @@ def sentence(text: str) -> str:
     return text[0].upper() + text[1:] if text else text
 
 
+def match_item(wanted: str | None, items: list) -> object | None:
+    """Same tolerance as categories: people say "the tea", the catalog says "Brooke Bond Red Label"."""
+    if not wanted:
+        return None
+    wanted = wanted.strip().lower()
+    for item in items:
+        if item.name.lower() == wanted:
+            return item
+    for item in items:
+        if wanted in item.name.lower():
+            return item
+    asked = [word for word in words(wanted) if len(word) > 2]
+    for item in items:
+        named = words(item.name)
+        if any(shares_root(word, other) or word == other for word in asked for other in named):
+            return item
+    return None
+
+
+def describe_omission(item, queued_ids: set[int], bought_ids: set[int], mandates: list) -> str:
+    """
+    Answers "why didn't you buy the tea?" from the state that decided it, in the order the cycle
+    actually applies: was it asked for, could it be had, was it covered, could it be afforded.
+    """
+    if item.id in bought_ids:
+        return f"{item.name} was bought on the last cycle."
+
+    covering = next((m for m in mandates if m.category == item.category), None)
+
+    if item.id not in queued_ids:
+        return (
+            f"{item.name} is not on your restock list, and I only shop for what you have marked as "
+            f"low. Add it in the catalog and it will be in the next cycle."
+        )
+    if item.stock_status != "in_stock":
+        return (
+            f"{item.name} is out of stock. I can stand in a similar item from {item.category} if one "
+            f"genuinely does the same job, but I will not buy a placeholder just to fill the slot."
+        )
+    if covering is None:
+        return (
+            f"{item.name} is in {item.category}, and you have no active mandate covering that "
+            f"category, so I have no authority to buy it."
+        )
+    if item.price > covering.per_order_cap:
+        return (
+            f"{item.name} costs ₹{item.price:,.2f}, which is over your ₹{covering.per_order_cap:,.2f} "
+            f"per-order cap for {item.category}. Buying it would have been refused, so I left it."
+        )
+    if item.price > covering.remaining_monthly_budget:
+        return (
+            f"{item.name} costs ₹{item.price:,.2f} and only ₹{covering.remaining_monthly_budget:,.2f} "
+            f"is left in this month's {item.category} budget."
+        )
+    return (
+        f"{item.name} was available and within budget — I judged it was not needed under your "
+        f"standing instruction for {item.category}. Say the word and I will queue it."
+    )
+
+
+def describe_queue(entries: list) -> str:
+    if not entries:
+        return "Your restock list is empty, so there is nothing for me to shop for."
+
+    by_category: dict[str, list[str]] = {}
+    for entry in entries:
+        name = entry.catalog_name or f"item #{entry.catalog_id}"
+        by_category.setdefault(entry.catalog_category or "uncategorised", []).append(name)
+
+    lines = [f"{category}: {', '.join(names)}" for category, names in by_category.items()]
+    return "On your restock list:\n" + "\n".join(lines)
+
+
+def describe_catalog(items: list) -> str:
+    by_category: dict[str, list] = {}
+    for item in items:
+        by_category.setdefault(item.category, []).append(item)
+
+    lines = []
+    for category, group in by_category.items():
+        cheapest = min(group, key=lambda i: i.price)
+        dearest = max(group, key=lambda i: i.price)
+        available = sum(1 for i in group if i.stock_status == "in_stock")
+        lines.append(
+            f"{category}: {len(group)} products, {available} in stock, "
+            f"₹{cheapest.price:,.0f} to ₹{dearest.price:,.0f}"
+        )
+    return "This merchant sells:\n" + "\n".join(lines)
+
+
+def describe_autopilot(state: dict, wanted_on: bool) -> str:
+    if wanted_on:
+        return (
+            f"Autopilot is on. I will run a cycle every {state['interval_seconds']} seconds against "
+            f"your existing mandates — same guardrails, same escalations, same ledger. Ask me to stop "
+            f"and I stop."
+        )
+    return "Autopilot is off. I will not shop again until you ask me to."
+
+
+def suggestions_for(intent: str, has_proposal: bool = False) -> list[str]:
+    """
+    What a person would plausibly say next. Derived from the intent we just handled, not generated,
+    so it costs nothing and cannot wander.
+    """
+    if has_proposal:
+        return ["Make it 800 per order", "What does this merchant sell?"]
+    return {
+        "mandate_issued": ["Run my next cycle", "What's on my restock list?"],
+        "run_cycle": ["Why is that waiting for approval?", "How much have I spent?"],
+        "explain_pending": ["How much have I spent?", "Run my next cycle"],
+        "explain_last": ["What's on my restock list?", "How much have I spent?"],
+        "explain_omission": ["What's on my restock list?", "Run my next cycle"],
+        "spend_status": ["Run my next cycle", "What's on my restock list?"],
+        "list_queue": ["Run my next cycle", "How much have I spent?"],
+        "control_autopilot": ["How much have I spent?", "What's on my restock list?"],
+        "what_can_you_buy": ["Keep household essentials stocked, 600 per order"],
+        "needs_category": ["Keep household essentials stocked, 600 per order"],
+        "unknown": ["How much have I spent?", "Run my next cycle"],
+    }.get(intent, ["Run my next cycle", "How much have I spent?"])
+
+
 def cannot_help(message: str) -> ChatReply:
     return ChatReply(
         reply=(
-            "I can set up a mandate, run a shopping cycle, tell you what has been spent, or explain "
-            "why something is waiting for you. I could not tell which of those you meant."
+            "I could not tell what you meant. I can set up or change a mandate, run a shopping "
+            "cycle, turn autopilot on or off, tell you what has been spent, show what is on your "
+            "restock list, say what this merchant sells, or explain why something is waiting for "
+            "you or why I skipped an item."
         ),
         intent="unknown",
     )
@@ -252,11 +415,16 @@ __all__ = [
     "MissingApiKey",
     "ask_which_category",
     "cannot_help",
+    "describe_autopilot",
+    "describe_catalog",
+    "describe_omission",
     "describe_policy",
     "describe_proposal",
     "describe_spend",
     "extract_intent",
     "match_category",
+    "match_item",
+    "suggestions_for",
     "propose_mandate",
     "sentence",
     "unavailable",

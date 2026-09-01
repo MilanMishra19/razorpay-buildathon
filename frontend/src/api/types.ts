@@ -176,6 +176,7 @@ export interface MandateProposal {
 export interface ChatReply {
   reply: string;
   intent: string;
+  suggestions: string[];
   proposal: MandateProposal | null;
   run: AgentRunReport | null;
   cart_mandate_id: number | null;

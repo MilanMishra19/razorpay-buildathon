@@ -100,14 +100,23 @@ cycle with a scripted decider and a fake checkout client.
 
 `POST /chat` is the conversational face of the agent, and it is deliberately narrow.
 
-The model gets exactly one job: read the message and return a structured intent — create a mandate,
-run a cycle, explain what is pending, explain the last cycle, or report spend. It never writes the
-answer. Everything the user reads afterwards is assembled from what the checkout API actually
+The model gets exactly one job: read the message and return a structured intent — draft or change a
+mandate, run a cycle, explain why a cart is pending, explain the last cycle, explain why a named
+product was skipped, report spend, list the restock queue, start or stop autopilot, or describe what
+the merchant sells. It never writes the answer. Everything the user reads afterwards is assembled from what the checkout API actually
 returned, so a sentence about money cannot disagree with the ledger. When the reply explains a policy
 decision, it reads the checks the guardrail recorded rather than reasoning about them again.
 
 Creating a mandate is a two-step: `/chat` returns a **proposal**, and `/chat/confirm` is the only
-path that issues it. The conversation can draft spending authority; it cannot grant it.
+path that issues it. The conversation can draft spending authority; it cannot grant it. Because only
+one mandate per category may be active, confirming a change revokes the old one first — both events
+land in the ledger, so authority is visibly replaced rather than quietly edited.
+
+The last few turns travel with each message, along with any draft still on the table, so "make it
+800" edits that one limit and leaves the rest of the mandate alone. A category the merchant does not
+sell is never silently swapped for one it does: the reply asks which was meant. Limits the user never
+stated are filled with defaults and the reply says which ones, because a number nobody chose should
+not be presented as though they had.
 
 With `LLM_PROVIDER=offline` — or when the hosted provider is unreachable — intent falls back to
 keyword matching, so the panel still understands the common asks. It reads intent only, and never

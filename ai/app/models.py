@@ -82,9 +82,16 @@ class MandateProposal(BaseModel):
     escalation_threshold_pct: Decimal
 
 
+class ChatTurn(BaseModel):
+    role: str
+    content: str
+
+
 class ChatRequest(BaseModel):
     user_id: int
     message: str
+    history: list[ChatTurn] = []
+    pending_proposal: MandateProposal | None = None
 
 
 class ConfirmMandateRequest(BaseModel):
@@ -95,6 +102,7 @@ class ConfirmMandateRequest(BaseModel):
 class ChatReply(BaseModel):
     reply: str
     intent: str
+    suggestions: list[str] = []
     proposal: MandateProposal | None = None
     run: RunReport | None = None
     cart_mandate_id: int | None = None
