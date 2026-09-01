@@ -32,15 +32,23 @@ audit chain, payment — is identical either way.
 
 | `LLM_PROVIDER` | What it does | Needs a key |
 |---|---|---|
-| `gemini` (default) | One call to Google Gemini (`GEMINI_MODEL`, default `gemini-3.5-flash`) with a JSON response schema | `GOOGLE_API_KEY` — free tier from [AI Studio](https://aistudio.google.com/apikey), no card |
+| `groq` | One call to Groq (`GROQ_MODEL`, default `openai/gpt-oss-120b`) over its OpenAI-compatible endpoint, pinned to a strict JSON schema | `GROQ_API_KEY` — free tier from [console.groq.com](https://console.groq.com), no card |
+| `gemini` | One call to Google Gemini (`GEMINI_MODEL`, default `gemini-3.5-flash`) with a JSON response schema | `GOOGLE_API_KEY` — free tier from [AI Studio](https://aistudio.google.com/apikey), no card |
 | `offline` | Deterministic stand-in: buys one of each in-stock item on the restock list, stopping at the tighter of the per-order cap and remaining budget | no |
 
 `offline` exists so a dead key or bad wifi can't kill a live demo. It is not a mock — it drives
 the real checkout API, so the guardrails, the hash-chained audit log and the Razorpay payment
 all still happen. Only the *choice of what to buy* is made without a model.
 
-Gemini's free tier is rate-limited, so the client retries `429`/`503` a couple of times with
-backoff before giving up with a `502`.
+Both hosted tiers are rate-limited, so each client retries transient statuses a couple of times
+with backoff, then hands off to `offline` rather than failing the cycle. Gemini's free tier is the
+tighter of the two — 20 requests per day per model — which is why `groq` is the practical default
+for development.
+
+The two paths differ in judgement, not in plumbing. Given a queued mosquito repellent that is out
+of stock, the offline decider reaches for the nearest in-stock price in the category; the model
+declines, because a scrub pad does not do the repellent's job. That distinction is the point of
+substitution intelligence, and it is why a surviving swap is still held for the user's approval.
 
 ## One cycle
 

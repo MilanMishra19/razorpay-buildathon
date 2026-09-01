@@ -19,8 +19,8 @@ async def lifespan(app: FastAPI):
     )
     app.state.decider = build_decider(
         settings.llm_provider,
-        settings.google_api_key,
-        settings.gemini_model,
+        settings.active_api_key,
+        settings.active_model,
         settings.max_output_tokens,
         settings.fallback_offline,
     )
@@ -40,8 +40,7 @@ app.add_middleware(
 
 @app.get("/health")
 async def health() -> dict[str, str]:
-    model = settings.gemini_model if settings.llm_provider == "gemini" else "none"
-    return {"status": "ok", "provider": settings.llm_provider, "model": model}
+    return {"status": "ok", "provider": settings.llm_provider, "model": settings.active_model}
 
 
 @app.post("/agent/run", response_model=RunReport)

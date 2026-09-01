@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Protocol
 
+import httpx
+
 from .models import CartLine, CatalogItem, Mandate, RestockEntry
 from .prompt import SYSTEM, build_user_content
 
@@ -35,7 +37,33 @@ CART_SCHEMA = {
     "required": ["items"],
 }
 
-TRANSIENT_STATUSES = (429, 500, 503)
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+
+# Groq speaks JSON Schema rather than Gemini's OpenAPI dialect, and strict mode wants every
+# property listed as required and the object closed.
+GROQ_CART_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "items": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "catalog_id": {"type": "integer"},
+                    "quantity": {"type": "integer"},
+                    "substitutes_for": {"type": ["integer", "null"]},
+                    "rationale": {"type": ["string", "null"]},
+                },
+                "required": ["catalog_id", "quantity", "substitutes_for", "rationale"],
+                "additionalProperties": False,
+            },
+        }
+    },
+    "required": ["items"],
+    "additionalProperties": False,
+}
+
+TRANSIENT_STATUSES = (429, 500, 502, 503)
 
 
 @dataclass
@@ -105,6 +133,85 @@ class GeminiDecider:
                 last_error = exc
                 time.sleep(2**attempt)
         raise DeciderUnavailable(str(last_error))
+
+
+class GroqDecider:
+    """
+    Groq's API is OpenAI-shaped, so the cart comes back as a JSON string in the message content,
+    pinned to a strict schema rather than trusted to arrive well-formed.
+    """
+
+    def __init__(
+        self,
+        api_key: str | None,
+        model: str,
+        max_output_tokens: int,
+        timeout: float = 60.0,
+        attempts: int = 3,
+    ) -> None:
+        self._api_key = api_key
+        self._model = model
+        self._max_output_tokens = max_output_tokens
+        self._timeout = timeout
+        self._attempts = attempts
+
+    def __call__(self, mandate, entries, items, instruction) -> Decision:
+        if not self._api_key:
+            raise MissingApiKey("GROQ_API_KEY is not configured")
+
+        user_content = build_user_content(instruction, mandate, entries, items)
+        payload = {
+            "model": self._model,
+            "temperature": 0,
+            "max_completion_tokens": self._max_output_tokens,
+            "messages": [
+                {"role": "system", "content": SYSTEM},
+                {"role": "user", "content": user_content},
+            ],
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {"name": "cart", "strict": True, "schema": GROQ_CART_SCHEMA},
+            },
+        }
+
+        raw = self._generate(payload)
+        return Decision(parse_cart(raw), full_prompt(user_content), raw)
+
+    def _generate(self, payload: dict) -> str:
+        last_error: str | None = None
+        for attempt in range(self._attempts):
+            try:
+                with httpx.Client(timeout=self._timeout) as client:
+                    response = client.post(
+                        GROQ_URL,
+                        headers={"Authorization": f"Bearer {self._api_key}"},
+                        json=payload,
+                    )
+            except httpx.RequestError as exc:
+                last_error = str(exc)
+                if attempt == self._attempts - 1:
+                    raise DeciderUnavailable(f"{self._model} call failed: {exc}") from exc
+                time.sleep(2**attempt)
+                continue
+
+            if response.status_code in TRANSIENT_STATUSES and attempt < self._attempts - 1:
+                last_error = f"{response.status_code} {response.text[:200]}"
+                time.sleep(2**attempt)
+                continue
+            if response.status_code >= 400:
+                raise DeciderUnavailable(
+                    f"{self._model} call failed: {response.status_code} {response.text[:300]}"
+                )
+            return read_choice(response.json())
+
+        raise DeciderUnavailable(f"{self._model} call failed: {last_error}")
+
+
+def read_choice(body: dict) -> str:
+    try:
+        return body["choices"][0]["message"]["content"] or ""
+    except (KeyError, IndexError, TypeError) as exc:
+        raise DeciderUnavailable(f"unexpected response shape: {str(body)[:200]}") from exc
 
 
 class OfflineDecider:
@@ -190,6 +297,9 @@ class FallbackDecider:
             return decision
 
 
+PRIMARY_DECIDERS = {"gemini": GeminiDecider, "groq": GroqDecider}
+
+
 def build_decider(
     provider: str,
     api_key: str | None,
@@ -199,8 +309,8 @@ def build_decider(
 ) -> Decider:
     if provider == "offline":
         return OfflineDecider()
-    if provider == "gemini":
-        primary = GeminiDecider(api_key, model, max_output_tokens)
+    if provider in PRIMARY_DECIDERS:
+        primary = PRIMARY_DECIDERS[provider](api_key, model, max_output_tokens)
         return FallbackDecider(primary, OfflineDecider()) if fallback_offline else primary
     raise ValueError(f"unknown LLM_PROVIDER: {provider}")
 

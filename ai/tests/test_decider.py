@@ -1,15 +1,18 @@
 from decimal import Decimal
 
+import httpx
 import pytest
 
 from app.llm import (
     DeciderUnavailable,
     GeminiDecider,
+    GroqDecider,
     MissingApiKey,
     OfflineDecider,
     build_decider,
     is_transient,
     parse_cart,
+    read_choice,
 )
 from app.models import CartLine, CatalogItem, RestockEntry
 
@@ -97,3 +100,59 @@ def test_a_transient_failure_is_retried_then_wrapped():
         decider._generate(client, "content", None)
 
     assert client.calls == 2
+
+
+class TestGroqDecider:
+    def test_it_refuses_to_run_without_a_key(self, mandate):
+        with pytest.raises(MissingApiKey):
+            GroqDecider(None, "openai/gpt-oss-120b", 512)(mandate, [], [], "restock")
+
+    def test_it_reads_the_cart_out_of_the_message_content(self):
+        body = {
+            "choices": [
+                {"message": {"content": '{"items":[{"catalog_id":4,"quantity":2}]}'}}
+            ]
+        }
+        assert read_choice(body) == '{"items":[{"catalog_id":4,"quantity":2}]}'
+
+    def test_an_unexpected_shape_is_a_failure_not_an_empty_cart(self):
+        with pytest.raises(DeciderUnavailable):
+            read_choice({"error": "nope"})
+
+    def test_a_hard_error_is_reported_rather_than_retried_forever(self, monkeypatch, mandate):
+        calls = []
+
+        class Response:
+            status_code = 401
+            text = "invalid api key"
+
+        class Client:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def post(self, *args, **kwargs):
+                calls.append(1)
+                return Response()
+
+        monkeypatch.setattr(httpx, "Client", lambda **kwargs: Client())
+
+        with pytest.raises(DeciderUnavailable) as caught:
+            GroqDecider("key", "openai/gpt-oss-120b", 512)(mandate, [], [], "restock")
+
+        assert len(calls) == 1
+        assert "401" in str(caught.value)
+
+    def test_a_dead_groq_falls_back_to_the_offline_decider(self, monkeypatch, mandate):
+        def explode(**kwargs):
+            raise httpx.ConnectError("no route to host")
+
+        monkeypatch.setattr(httpx, "Client", explode)
+
+        decider = build_decider("groq", "key", "openai/gpt-oss-120b", 512)
+        decision = decider(mandate, [], [], "restock")
+
+        assert decision.degraded is not None
+        assert "no route to host" in decision.degraded

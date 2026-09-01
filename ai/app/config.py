@@ -16,8 +16,18 @@ class Settings(BaseSettings):
     llm_provider: str = "gemini"
     google_api_key: str | None = None
     gemini_model: str = "gemini-3.5-flash"
+    groq_api_key: str | None = None
+    groq_model: str = "openai/gpt-oss-120b"
     fallback_offline: bool = True
     max_output_tokens: int = 2048
+
+    @property
+    def active_api_key(self) -> str | None:
+        return {"gemini": self.google_api_key, "groq": self.groq_api_key}.get(self.llm_provider)
+
+    @property
+    def active_model(self) -> str:
+        return {"gemini": self.gemini_model, "groq": self.groq_model}.get(self.llm_provider, "none")
 
     default_instruction: str = (
         "Restock what is on the list. Buy the smallest sensible quantity of each item "

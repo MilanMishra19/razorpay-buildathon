@@ -12,7 +12,7 @@ A user issues an **intent mandate** ("keep milk, bread, eggs stocked; ₹X per o
 | Path | Stack | Responsibility |
 |---|---|---|
 | `aethis/` | Spring Boot 4.1, Java 21, JPA, Spring Security | **Agent Checkout API** — auth, all guardrail enforcement, hash-chained audit log, Razorpay test-mode payments. Enforcement lives *only* here; the agent can only propose. |
-| `ai/` | FastAPI (Python) | **Buyer Agent** — assembles one prompt, makes one LLM call → strict JSON, deterministically validates it, forwards the cart to the checkout API, records the run. Runs on Gemini's free tier, with a deterministic offline fallback. |
+| `ai/` | FastAPI (Python) | **Buyer Agent** — assembles one prompt, makes one LLM call → strict JSON, deterministically validates it, forwards the cart to the checkout API, records the run. Runs on Groq's or Gemini's free tier, with a deterministic offline fallback. |
 | `frontend/` | React 19, Vite, TypeScript | Dashboard — mandate overview, pending-approvals inbox, transaction timeline, chain-integrity check, catalog + prompt-injection demo. |
 
 ## Design docs
@@ -30,7 +30,7 @@ A user issues an **intent mandate** ("keep milk, bread, eggs stocked; ₹X per o
 ### Everything in containers
 
 ```bash
-cp ai/.env.example .env && $EDITOR .env       # GOOGLE_API_KEY, optionally RAZORPAY_*
+cp ai/.env.example .env && $EDITOR .env       # GROQ_API_KEY, optionally RAZORPAY_*
 docker compose --profile full up --build
 ```
 
@@ -59,7 +59,7 @@ Environment:
 | Service | Vars |
 |---|---|
 | `aethis` | `DB_URL`, `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`, `AGENT_SERVICE_TOKEN`; optional `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` (a stub is used when unset), `RAZORPAY_FORCE_FAILURE` |
-| `ai` | `CHECKOUT_API_URL`, `AGENT_SERVICE_TOKEN`, `LLM_PROVIDER` (`gemini` \| `offline`), `GOOGLE_API_KEY`, `GEMINI_MODEL` |
+| `ai` | `CHECKOUT_API_URL`, `AGENT_SERVICE_TOKEN`, `LLM_PROVIDER` (`groq` \| `gemini` \| `offline`), `GROQ_API_KEY` / `GROQ_MODEL`, `GOOGLE_API_KEY` / `GEMINI_MODEL` |
 | `frontend` | `VITE_CHECKOUT_API_URL`, `VITE_AGENT_API_URL` |
 
 ## Build phases
