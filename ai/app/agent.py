@@ -46,6 +46,7 @@ async def run_cycle(
             reason="the model chose no eligible items",
             flagged_catalog_ids=flagged,
             dropped_catalog_ids=dropped,
+            model_unavailable=decision.degraded,
         )
 
     cart = await client.propose_cart(user_id, mandate.id, kept)
@@ -69,4 +70,5 @@ async def run_cycle(
         flagged_catalog_ids=flagged,
         dropped_catalog_ids=dropped,
         payment_status=payment_status,
+        model_unavailable=decision.degraded,
     )

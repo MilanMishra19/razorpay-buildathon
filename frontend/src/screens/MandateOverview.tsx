@@ -255,6 +255,16 @@ function RunSummary({ result }: { result: AgentRunResult }) {
           {result.payment_status ? ` · ${result.payment_status}` : ''}
         </span>
       </div>
+      {result.model_unavailable && (
+        <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--line)', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+          {Icon.warn('var(--amber)', 15)}
+          <span style={{ fontSize: 12, lineHeight: 1.55, color: 'var(--ink-dim)' }}>
+            The model was unavailable, so this cart was chosen deterministically instead. Guardrails, audit chain and
+            payment all still ran for real.{' '}
+            <span className="mono" style={{ color: 'var(--ink-ghost)' }}>{result.model_unavailable}</span>
+          </span>
+        </div>
+      )}
     </Panel>
   );
 }

@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from .agent import NoActiveMandate, run_cycle
 from .checkout_client import CheckoutClient, CheckoutError
@@ -21,12 +22,20 @@ async def lifespan(app: FastAPI):
         settings.google_api_key,
         settings.gemini_model,
         settings.max_output_tokens,
+        settings.fallback_offline,
     )
     yield
     await app.state.checkout.aclose()
 
 
 app = FastAPI(title="Aethis Buyer Agent", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.allowed_origins,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health")

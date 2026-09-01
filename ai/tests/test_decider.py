@@ -20,13 +20,13 @@ def entries(*catalog_ids: int) -> list[RestockEntry]:
 
 def test_build_decider_selects_by_provider():
     assert isinstance(build_decider("offline", None, "m", 100), OfflineDecider)
-    assert isinstance(build_decider("gemini", "key", "m", 100), GeminiDecider)
+    assert isinstance(build_decider("gemini", "key", "m", 100, fallback_offline=False), GeminiDecider)
     with pytest.raises(ValueError):
         build_decider("nope", None, "m", 100)
 
 
 def test_gemini_decider_refuses_to_run_without_a_key(mandate, catalog):
-    decider = build_decider("gemini", None, "gemini-3.5-flash", 100)
+    decider = build_decider("gemini", None, "gemini-3.5-flash", 100, fallback_offline=False)
     with pytest.raises(MissingApiKey):
         decider(mandate, entries(1), catalog, "restock")
 

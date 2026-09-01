@@ -33,6 +33,7 @@ class Decision:
     lines: list[CartLine]
     prompt: str
     raw_response: str
+    degraded: str | None = None
 
 
 class Decider(Protocol):
@@ -128,11 +129,32 @@ def full_prompt(user_content: str) -> str:
     return f"{SYSTEM}\n\n---\n\n{user_content}"
 
 
-def build_decider(provider: str, api_key: str | None, model: str, max_output_tokens: int) -> Decider:
+class FallbackDecider:
+    def __init__(self, primary: Decider, backup: Decider) -> None:
+        self._primary = primary
+        self._backup = backup
+
+    def __call__(self, mandate, entries, items, instruction) -> Decision:
+        try:
+            return self._primary(mandate, entries, items, instruction)
+        except (DeciderUnavailable, MissingApiKey) as exc:
+            decision = self._backup(mandate, entries, items, instruction)
+            decision.degraded = str(exc)
+            return decision
+
+
+def build_decider(
+    provider: str,
+    api_key: str | None,
+    model: str,
+    max_output_tokens: int,
+    fallback_offline: bool = True,
+) -> Decider:
     if provider == "offline":
         return OfflineDecider()
     if provider == "gemini":
-        return GeminiDecider(api_key, model, max_output_tokens)
+        primary = GeminiDecider(api_key, model, max_output_tokens)
+        return FallbackDecider(primary, OfflineDecider()) if fallback_offline else primary
     raise ValueError(f"unknown LLM_PROVIDER: {provider}")
 
 

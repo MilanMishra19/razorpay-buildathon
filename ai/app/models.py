@@ -57,3 +57,4 @@ class RunResult(BaseModel):
     flagged_catalog_ids: list[int] = []
     dropped_catalog_ids: list[int] = []
     payment_status: str | None = None
+    model_unavailable: str | None = None

@@ -107,4 +107,5 @@ export interface AgentRunResult {
   flagged_catalog_ids: number[];
   dropped_catalog_ids: number[];
   payment_status: string | null;
+  model_unavailable: string | null;
 }
