@@ -48,7 +48,7 @@ export function Shell() {
             style={{
               width: 28,
               height: 28,
-              borderRadius: 3,
+              borderRadius: 8,
               background: 'var(--stamp)',
               display: 'grid',
               placeItems: 'center',
@@ -91,7 +91,7 @@ export function Shell() {
                     color: '#fff',
                     minWidth: 18,
                     height: 18,
-                    borderRadius: 2,
+                    borderRadius: 6,
                     display: 'grid',
                     placeItems: 'center',
                     padding: '0 5px',

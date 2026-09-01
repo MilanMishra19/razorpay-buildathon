@@ -68,9 +68,12 @@
   --ledger-dim: #8c969f;
   --ledger-faint: #666f77;
 
-  --radius: 5px;
-  --radius-sm: 3px;
-  --radius-pill: 5px;
+  /* Paper is rounded; authority is not. The stamp and the check marks stay hard-edged so the one
+     square thing on the page is the mark that decides. */
+  --radius: 14px;
+  --radius-sm: 10px;
+  --radius-xs: 6px;
+  --radius-pill: 10px;
 
   /* sheets resting on a desk, not cards floating above one */
   --lift: 0 1px 0 rgba(20, 23, 26, 0.03), 0 1px 3px -1px rgba(20, 23, 26, 0.08);
@@ -162,7 +165,7 @@ input {
   background: var(--paper);
   border: 1px solid var(--line-hot);
   border-radius: var(--radius-sm);
-  height: 44px;
+  height: 46px;
   padding: 0 13px;
   outline: none;
   width: 100%;

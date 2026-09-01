@@ -114,7 +114,7 @@ export function ChatPanel({ onChanged }: { onChanged: () => void }) {
           style={{
             width: 24,
             height: 24,
-            borderRadius: 3,
+            borderRadius: 8,
             background: 'var(--stamp)',
             display: 'grid',
             placeItems: 'center',
@@ -227,7 +227,7 @@ function Bubble({
       <div
         style={{
           maxWidth: '84%',
-          borderRadius: mine ? '5px 5px 1px 5px' : '5px 5px 5px 1px',
+          borderRadius: mine ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
           background: mine ? 'var(--ink)' : 'var(--panel-sunken)',
           color: mine ? '#fff' : 'var(--ink-2)',
           padding: '11px 14px',

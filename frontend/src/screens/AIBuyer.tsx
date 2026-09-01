@@ -202,7 +202,7 @@ function Switch({ on, onClick }: { on: boolean; onClick: () => void }) {
       style={{
         width: 46,
         height: 26,
-        borderRadius: 3,
+        borderRadius: 7,
         background: on ? 'var(--ok)' : 'var(--line-hot)',
         position: 'relative',
         flexShrink: 0,
@@ -215,7 +215,7 @@ function Switch({ on, onClick }: { on: boolean; onClick: () => void }) {
           left: on ? 23 : 3,
           width: 20,
           height: 20,
-          borderRadius: 2,
+          borderRadius: 5,
           background: '#fff',
           transition: 'left 0.16s ease',
           boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
