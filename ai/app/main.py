@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException
 from .agent import NoActiveMandate, run_cycle
 from .checkout_client import CheckoutClient, CheckoutError
 from .config import settings
-from .llm import AnthropicDecider, MissingApiKey
+from .llm import DeciderUnavailable, MissingApiKey, build_decider
 from .models import RunRequest, RunResult
 
 
@@ -16,10 +16,11 @@ async def lifespan(app: FastAPI):
         settings.agent_service_token,
         settings.request_timeout_seconds,
     )
-    app.state.decider = AnthropicDecider(
-        settings.anthropic_api_key,
-        settings.anthropic_model,
-        settings.max_tokens,
+    app.state.decider = build_decider(
+        settings.llm_provider,
+        settings.google_api_key,
+        settings.gemini_model,
+        settings.max_output_tokens,
     )
     yield
     await app.state.checkout.aclose()
@@ -30,7 +31,8 @@ app = FastAPI(title="Aethis Buyer Agent", lifespan=lifespan)
 
 @app.get("/health")
 async def health() -> dict[str, str]:
-    return {"status": "ok", "model": settings.anthropic_model}
+    model = settings.gemini_model if settings.llm_provider == "gemini" else "none"
+    return {"status": "ok", "provider": settings.llm_provider, "model": model}
 
 
 @app.post("/agent/run", response_model=RunResult)
@@ -42,5 +44,7 @@ async def run(request: RunRequest) -> RunResult:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except MissingApiKey as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except DeciderUnavailable as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     except CheckoutError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc

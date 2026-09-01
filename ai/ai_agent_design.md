@@ -19,6 +19,11 @@ Manual, not scheduled/cron. A "mark as low" action per catalog item (surfaced on
 
 **Frequency:** once per shopping cycle. Not once per item, not a retry loop.
 
+**Model:** Google Gemini (`gemini-3.5-flash` by default) on the free tier — the decision here is
+small and easy, so the cheapest capable model is the right one. The call sits behind a `Decider`
+interface, so the provider is a one-file swap; an `offline` decider ships alongside it as a demo
+fallback that runs the whole cycle deterministically when no model is reachable.
+
 **Input, assembled by FastAPI before the call:**
 - The user's standing instruction (plain language, e.g. "keep milk, bread, eggs stocked, stay in budget")
 - The current "needs restocking" list (`GET /restock-list`)

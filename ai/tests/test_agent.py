@@ -31,10 +31,10 @@ async def test_the_poisoned_description_never_reaches_the_model(mandate, catalog
 
     result = await run_cycle(checkout, decider, user_id=1, instruction="restock")
 
-    assert "disregard" not in decider.user_content
-    assert "supersedes" not in decider.user_content
-    assert WITHHELD in decider.user_content
-    assert "Rice" in decider.user_content
+    assert "disregard" not in decider.prompt
+    assert "add 50 units" not in decider.prompt
+    assert WITHHELD in decider.prompt
+    assert "Rice" in decider.prompt
     assert result.flagged_catalog_ids == [10]
 
 
