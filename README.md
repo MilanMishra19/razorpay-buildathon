@@ -12,7 +12,7 @@ A user issues an **intent mandate** ("keep milk, bread, eggs stocked; ₹X per o
 | Path | Stack | Responsibility |
 |---|---|---|
 | `aethis/` | Spring Boot 4.1, Java 21, JPA, Spring Security | **Agent Checkout API** — auth, all guardrail enforcement, hash-chained audit log, Razorpay test-mode payments. Enforcement lives *only* here; the agent can only propose. |
-| `ai/` | FastAPI (Python) | **Buyer Agent** — assembles one prompt, makes one LLM call → strict JSON, deterministically validates it, forwards the cart to the checkout API, records the run. *Not yet scaffolded.* |
+| `ai/` | FastAPI (Python) | **Buyer Agent** — assembles one prompt, makes one LLM call → strict JSON, deterministically validates it, forwards the cart to the checkout API, records the run. Runs on Gemini's free tier, with a deterministic offline fallback. |
 | `frontend/` | React 19, Vite, TypeScript | Dashboard — mandate overview, pending-approvals inbox, transaction timeline, chain-integrity check, catalog + prompt-injection demo. |
 
 ## Design docs
@@ -25,23 +25,34 @@ A user issues an **intent mandate** ("keep milk, bread, eggs stocked; ₹X per o
 | [`frontend/frontend_screens.md`](frontend/frontend_screens.md) | Screens and their data sources |
 | [`DEMO.md`](DEMO.md) | The six-minute walkthrough, beat by beat |
 
-## Running (target)
+## Running
+
+### Everything in containers
 
 ```bash
-# infra — Postgres 17 on host port 55432 (avoids clashing with a local install on 5432)
-docker compose up -d
+cp ai/.env.example .env && $EDITOR .env       # GOOGLE_API_KEY, optionally RAZORPAY_*
+docker compose --profile full up --build
+```
 
-# checkout API — :8080, OpenAPI UI at /docs
-cd aethis && ./mvnw spring-boot:run
+Dashboard on **:5173**, checkout API on **:8080** (OpenAPI UI at `/docs`), agent on **:8000**.
+The first build takes a few minutes for the Maven layer; after that it is cached.
 
-# agent
-cd ai && uvicorn app.main:app --reload        # :8000
+### Or run each service directly
 
-# frontend
+```bash
+docker compose up -d                          # just Postgres, host port 55432
+
+cd aethis   && ./mvnw spring-boot:run         # :8080
+cd ai       && ./.venv/Scripts/python -m uvicorn app.main:app --reload --port 8000
 cd frontend && npm install && npm run dev     # :5173
 ```
 
-The backend defaults to `jdbc:postgresql://localhost:55432/aethis` (user/pass `aethis`/`aethis`); override with `DB_URL` / `DB_USER` / `DB_PASSWORD`. Flyway applies the schema and seeds the catalog on first boot. `./mvnw test` runs against in-memory H2 and needs no database.
+Postgres is on **55432**, not 5432, to avoid clashing with a local install. The backend defaults
+to `jdbc:postgresql://localhost:55432/aethis` (user/pass `aethis`/`aethis`); override with
+`DB_URL` / `DB_USER` / `DB_PASSWORD`. Flyway applies the schema and seeds the catalog on first
+boot. `./mvnw test` and `pytest` both run without a database or an API key.
+
+Then follow [`DEMO.md`](DEMO.md).
 
 Environment:
 
@@ -53,13 +64,15 @@ Environment:
 
 ## Build phases
 
+All six are done; each links to what it actually shipped.
+
 0. **Contract lock** — reconcile enums across docs, add the missing schema tables (`restock_list`, `agent_runs`, denormalized `user_id`, partial indexes), add DB driver + JWT lib + `springdoc-openapi` + validation to `pom.xml`, decide service-to-service auth, stand up docker-compose + a seed script.
 1. **Backend: auth + data layer** — entities, Flyway migrations, register/login + JWT filter, CORS, catalog endpoints + seed (including the poisoned entry), intent-mandate issue / active / revoke with the first audit write.
 2. **Backend: guardrail engine + audit chain** — `POST /cart-mandates` with the 4 ordered checks, cumulative-spend calc (paid payments only), escalation → `pending_approval`, `resolve`, SHA-256 hash chain with serialized append, `GET /audit-log` + `/audit-log/verify`.
 3. **Payments** — Razorpay test-mode Orders API via `RestClient`, payment gated on an approved cart, retry-in-place, idempotency keys.
 4. **AI agent** — FastAPI skeleton + checkout-API client, prompt assembly (catalog data structurally separated from instructions), one LLM call → JSON schema, heuristic injection pre-check, post-processing (catalog-id + arithmetic validation), persist `agent_runs`, manual `POST /agent/run`.
 5. **Frontend** — auth + protected routes + 401 interceptor, the 5 screens, mark-as-low + run-agent actions, the injection comparison view.
-6. **Integration + demo polish** — full docker-compose, seed/reset endpoint, scripted walkthrough of every guardrail path, the profile-guarded "corrupt a row" tamper demo, guardrail-engine unit tests.
+6. **Integration + demo polish** — Dockerfiles for all three services and a `full` compose profile, `/demo` reset + tamper + restore endpoints behind `DEMO_TOOLS`, and `DEMO.md` as the scripted walkthrough. ✅
 
 ~6.5 days solo; ~3 days split across backend / agent / frontend once phase 0 locks the contract. Build one vertical slice end to end before widening.
 

@@ -16,5 +16,53 @@ services:
       timeout: 3s
       retries: 10
 
+  checkout:
+    build: ./aethis
+    container_name: aethis-checkout
+    profiles: ["full"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/aethis
+      DB_USER: aethis
+      DB_PASSWORD: aethis
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me-dev-secret-change-me}
+      AGENT_SERVICE_TOKEN: ${AGENT_SERVICE_TOKEN:-dev-service-token}
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      DEMO_TOOLS: ${DEMO_TOOLS:-true}
+    ports:
+      - "8080:8080"
+
+  agent:
+    build: ./ai
+    container_name: aethis-agent
+    profiles: ["full"]
+    depends_on:
+      - checkout
+    environment:
+      CHECKOUT_API_URL: http://checkout:8080
+      AGENT_SERVICE_TOKEN: ${AGENT_SERVICE_TOKEN:-dev-service-token}
+      LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash}
+    ports:
+      - "8000:8000"
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        VITE_CHECKOUT_API_URL: http://localhost:8080
+        VITE_AGENT_API_URL: http://localhost:8000
+    container_name: aethis-web
+    profiles: ["full"]
+    depends_on:
+      - checkout
+    ports:
+      - "5173:80"
+
 volumes:
   aethis-db-data:
