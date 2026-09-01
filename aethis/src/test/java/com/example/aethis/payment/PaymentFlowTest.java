@@ -82,7 +82,7 @@ class PaymentFlowTest {
         assertThat(payment.paymentStatus()).isEqualTo(PaymentStatus.PAID);
         assertThat(payment.razorpayOrderId()).isEqualTo("order_test_1");
         assertThat(payment.paidAt()).isNotNull();
-        assertThat(auditService.verifyChain().valid()).isTrue();
+        assertThat(auditService.verifyChain(userId).valid()).isTrue();
     }
 
     @Test
@@ -118,7 +118,7 @@ class PaymentFlowTest {
         PaymentResponse retried = paymentService.retry(userId, failed.paymentMandateId());
         assertThat(retried.paymentMandateId()).isEqualTo(failed.paymentMandateId());
         assertThat(retried.paymentStatus()).isEqualTo(PaymentStatus.PAID);
-        assertThat(auditService.verifyChain().valid()).isTrue();
+        assertThat(auditService.verifyChain(userId).valid()).isTrue();
     }
 
     @Test

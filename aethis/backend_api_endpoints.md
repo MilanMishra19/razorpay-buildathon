@@ -162,7 +162,7 @@ Get the full audit trail for the authenticated user — powers the dashboard tim
 **Response:** list of `{ id, type, event, reason, summary, timestamp }` — `summary` is a short human-readable line about the referenced record (e.g. "Cart of ₹450 for milk, bread, eggs") so the frontend doesn't need extra calls to explain each row. `id` is the audit row's own id, which is what `/audit-log/verify` reports as `broken_at_id`.
 
 ### `GET /audit-log/verify`
-Recomputes the hash chain end to end and confirms nothing has been tampered with. Intended to be a real, callable, demoable action — not just internal logic.
+Recomputes **the caller's** hash chain end to end and confirms nothing has been tampered with. Each user has their own chain (see `database_schema.md`), so this verifies exactly the rows `GET /audit-log` returns. Intended to be a real, callable, demoable action — not just internal logic.
 
 **Response:**
 ```

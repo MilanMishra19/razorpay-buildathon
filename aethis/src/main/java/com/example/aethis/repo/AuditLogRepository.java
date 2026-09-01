@@ -10,9 +10,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
 
     List<AuditLog> findByUserIdOrderByIdAsc(Long userId);
 
-    List<AuditLog> findAllByOrderByIdAsc();
-
-    Optional<AuditLog> findFirstByOrderByIdDesc();
+    Optional<AuditLog> findFirstByUserIdOrderByIdDesc(Long userId);
 
     void deleteByUserId(Long userId);
 }

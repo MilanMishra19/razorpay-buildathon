@@ -28,7 +28,7 @@ public class AuditService {
                            String reason, Map<String, Object> snapshot) {
         chainGuard.acquire();
 
-        String prevHash = repository.findFirstByOrderByIdDesc()
+        String prevHash = repository.findFirstByUserIdOrderByIdDesc(userId)
                 .map(AuditLog::getDataHash)
                 .orElse(Hashing.GENESIS);
         String snapshotJson = Hashing.canonicalJson(snapshot);
@@ -60,8 +60,8 @@ public class AuditService {
     }
 
     @Transactional(readOnly = true)
-    public ChainVerification verifyChain() {
-        List<AuditLog> rows = repository.findAllByOrderByIdAsc();
+    public ChainVerification verifyChain(Long userId) {
+        List<AuditLog> rows = repository.findByUserIdOrderByIdAsc(userId);
         String prevHash = Hashing.GENESIS;
 
         for (AuditLog row : rows) {

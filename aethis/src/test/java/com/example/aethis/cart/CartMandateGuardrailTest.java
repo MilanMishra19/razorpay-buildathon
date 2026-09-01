@@ -143,7 +143,7 @@ class CartMandateGuardrailTest {
         cartService.propose(userId, cart(mandateId, outOfStockId, 1));
         cartService.propose(userId, cart(mandateId, attaId, 1));
 
-        assertThat(auditService.verifyChain().valid()).isTrue();
+        assertThat(auditService.verifyChain(userId).valid()).isTrue();
     }
 
     private long issueMandate(String category, String perOrderCap, String monthlyCap, String escalationPct) {

@@ -23,7 +23,7 @@ public class AuditController {
     }
 
     @GetMapping("/verify")
-    public ChainVerification verify() {
-        return auditService.verifyChain();
+    public ChainVerification verify(@AuthenticationPrincipal Long userId) {
+        return auditService.verifyChain(userId);
     }
 }

@@ -117,6 +117,8 @@ Generic, append-only, hash-chained log of every event across all three mandate t
 
 **Tamper-evidence property:** editing any row's content (or its `record_snapshot`) changes its recomputed `data_hash`, which no longer matches the `prev_hash` the next row stored — `GET /audit-log/verify` recomputes the chain end to end and reports the first row where it breaks.
 
+**One chain per user.** `prev_hash` links a row to that **user's** previous row, not the table's. Each user's ledger is an independent chain starting at its own genesis row, and `GET /audit-log/verify` walks only the caller's rows — so it verifies exactly what the dashboard displays, and one user's activity can never invalidate another's ledger. (A single global chain would also make per-user deletion impossible: removing anyone's rows would strand every `prev_hash` after them.)
+
 **Append serialization:** appends run under a Postgres transaction-scoped advisory lock (`pg_advisory_xact_lock`) so `prev_hash` always points at the true tail — concurrent appends would otherwise fork the chain.
 
 ---
