@@ -6,6 +6,7 @@ import type { AgentRun, CartStatus, CatalogItem, Mandate, RestockEntry } from '.
 import { loadActiveMandates, loadCategories, mandateFor } from '../api/mandates';
 import { CategoryTabs } from '../components/CategoryTabs';
 import { Empty, Icon, Notice, Panel, money, statusColor } from '../components/ui';
+import { productGlyph, productTint } from '../components/glyph';
 
 interface ProposeOutcome {
   status: CartStatus;
@@ -138,119 +139,40 @@ export function Catalog() {
       </Panel>
 
       <div style={{ display: 'flex', gap: 26, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        <Panel style={{ width: 560, flexShrink: 0 }}>
+        <div style={{ width: 620, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div
-            className="mono"
-            style={{ display: 'flex', padding: '10px 16px', borderBottom: '1px solid var(--line)', background: 'var(--panel-sunken)', fontSize: 9, letterSpacing: '0.18em', color: 'var(--ink-ghost)' }}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))',
+              gap: 14,
+            }}
           >
-            <span style={{ width: 32 }}>ID</span>
-            <span style={{ flexGrow: 1 }}>ITEM</span>
-            <span style={{ width: 70, textAlign: 'right' }}>PRICE</span>
-            <span style={{ width: 108, textAlign: 'right' }}>STOCK</span>
-          </div>
-
-          {visible.map((item) => {
-            const isFlagged = flagged.has(item.id);
-            const inQueue = queued.has(item.id);
-            return (
-              <div
+            {visible.map((item) => (
+              <ProductCard
                 key={item.id}
-                style={{
-                  borderBottom: '1px solid var(--line-soft)',
-                  borderLeft: isFlagged ? '2px solid var(--bad)' : '2px solid transparent',
-                  background: isFlagged ? 'var(--bad-bg)' : 'transparent',
-                  padding: '10px 16px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 7,
-                  opacity: item.stock_status === 'out_of_stock' ? 0.55 : 1,
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', fontSize: 13 }}>
-                  <span className="mono" style={{ width: 32, fontSize: 11, color: isFlagged ? 'var(--bad)' : '#3d4954' }}>
-                    {String(item.id).padStart(2, '0')}
-                  </span>
-                  <span style={{ flexGrow: 1, color: 'var(--ink-2)' }}>{item.name}</span>
-                  <span className="mono" style={{ width: 70, textAlign: 'right', color: 'var(--ink-dim)' }}>
-                    {item.price.toFixed(2)}
-                  </span>
-                  <span
-                    className="mono"
-                    style={{ width: 108, textAlign: 'right', fontSize: 10, color: item.stock_status === 'in_stock' ? 'var(--ok)' : 'var(--bad)' }}
-                  >
-                    {item.stock_status === 'in_stock' ? 'IN STOCK' : 'OUT'}
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingLeft: 32, flexWrap: 'wrap' }}>
-                  <button
-                    onClick={() => markLow(item)}
-                    disabled={inQueue || item.stock_status === 'out_of_stock'}
-                    className="mono"
-                    style={{
-                      border: `1px solid ${inQueue ? 'var(--amber-line)' : 'var(--line-hot)'}`,
-                      background: 'transparent',
-                      color: inQueue ? 'var(--amber)' : 'var(--ink-faint)',
-                      padding: '3px 9px',
-                      fontSize: 9,
-                      letterSpacing: '0.12em',
-                    }}
-                  >
-                    {inQueue ? 'QUEUED' : 'MARK AS LOW'}
-                  </button>
-
-                  <span style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--line)' }}>
-                    <button
-                      onClick={() => setQty(item.id, qtyFor(item.id) - 1)}
-                      className="mono"
-                      style={{ background: 'transparent', color: 'var(--ink-faint)', padding: '2px 8px', fontSize: 11 }}
-                    >
-                      −
-                    </button>
-                    <span className="mono" style={{ minWidth: 26, textAlign: 'center', fontSize: 11, color: 'var(--ink-2)' }}>
-                      {qtyFor(item.id)}
-                    </span>
-                    <button
-                      onClick={() => setQty(item.id, qtyFor(item.id) + 1)}
-                      className="mono"
-                      style={{ background: 'transparent', color: 'var(--ink-faint)', padding: '2px 8px', fontSize: 11 }}
-                    >
-                      +
-                    </button>
-                  </span>
-                  <button
-                    onClick={() => proposeDirect(item)}
-                    disabled={proposing === item.id}
-                    className="mono"
-                    style={{ border: '1px solid var(--line-hot)', background: 'transparent', color: 'var(--ink-dim)', padding: '3px 9px', fontSize: 9, letterSpacing: '0.12em' }}
-                  >
-                    {proposing === item.id ? 'CHECKING…' : 'PROPOSE'}
-                  </button>
-
-                  {isFlagged && (
-                    <span className="mono" style={{ fontSize: 9, letterSpacing: '0.12em', color: 'var(--bad)', border: '1px solid var(--bad-line)', padding: '3px 7px' }}>
-                      FLAGGED · INJECTION
-                    </span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-
-          <div
-            className="mono"
-            style={{ padding: '11px 16px', borderTop: '1px solid var(--line)', background: 'var(--panel-sunken)', fontSize: 10, color: 'var(--ink-ghost)' }}
-          >
-            {visible.length} listings · screened before every cycle
+                item={item}
+                flagged={flagged.has(item.id)}
+                queued={queued.has(item.id)}
+                quantity={qtyFor(item.id)}
+                busy={proposing === item.id}
+                onQuantity={(value) => setQty(item.id, value)}
+                onMarkLow={() => markLow(item)}
+                onPropose={() => proposeDirect(item)}
+              />
+            ))}
           </div>
-        </Panel>
+          <span className="mono" style={{ fontSize: 10, color: 'var(--ink-faint)', paddingLeft: 2 }}>
+            {visible.length} listings · screened before every cycle
+          </span>
+        </div>
 
         <Panel
           title="INJECTION EVIDENCE"
+          tone="ledger"
           style={{ flexGrow: 1, minWidth: 480 }}
           actions={
             latest && (
-              <span className="mono" style={{ fontSize: 10, color: 'var(--ink-ghost)' }}>
+              <span className="mono" style={{ fontSize: 10, color: 'var(--ledger-faint)' }}>
                 agent_run #{latest.id}
               </span>
             )
@@ -262,7 +184,7 @@ export function Catalog() {
             <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
               {flaggedItem && (
                 <Section label="① What the merchant listing says">
-                  <div style={{ border: '1px solid var(--bad-line)', background: '#140f0f', padding: '14px 16px', fontSize: 13, lineHeight: 1.7, color: '#a89b99' }}>
+                  <div style={{ border: '1px solid #5c2a26', borderRadius: 'var(--radius-sm)', background: '#1c1210', padding: '14px 16px', fontSize: 13, lineHeight: 1.7, color: '#d8a9a3' }}>
                     {flaggedItem.description}
                   </div>
                 </Section>
@@ -271,7 +193,7 @@ export function Catalog() {
               <Section label="② What the model was shown">
                 <pre
                   className="mono"
-                  style={{ margin: 0, border: '1px solid var(--line)', background: 'var(--void)', padding: '13px 16px', fontSize: 11, color: 'var(--ink-faint)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 150, overflow: 'auto' }}
+                  style={{ margin: 0, border: '1px solid var(--ledger-line)', borderRadius: 'var(--radius-sm)', background: 'var(--ledger-soft)', padding: '13px 16px', fontSize: 11, color: 'var(--ledger-faint)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 150, overflow: 'auto' }}
                 >
                   {extractCatalogLine(latest.prompt, flaggedItem?.id)}
                 </pre>
@@ -280,25 +202,25 @@ export function Catalog() {
               <Section label="③ What the model returned">
                 <pre
                   className="mono"
-                  style={{ margin: 0, border: '1px solid var(--line)', background: 'var(--void)', padding: '13px 16px', fontSize: 11, color: 'var(--ink-dim)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                  style={{ margin: 0, border: '1px solid var(--ledger-line)', borderRadius: 'var(--radius-sm)', background: 'var(--ledger-soft)', padding: '13px 16px', fontSize: 11, color: 'var(--ledger-dim)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
                 >
                   {latest.raw_response}
                 </pre>
               </Section>
 
               <div
-                style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 1, background: 'var(--line)', border: '1px solid var(--line)' }}
+                style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 1, background: 'var(--ledger-line)', border: '1px solid var(--ledger-line)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}
               >
-                <Cell label="Demanded" value={demandedQuantity(flaggedItem?.description)} tone="var(--bad)" background="#140f0f" />
+                <Cell label="Demanded" value={demandedQuantity(flaggedItem?.description)} tone="#ff7a6e" background="#1c1210" />
                 <Cell
                   label="Purchased"
                   value={String(latest.parsed_cart?.find((line) => line.catalog_id === flaggedItem?.id)?.quantity ?? 0)}
-                  tone="var(--ok)"
-                  background="#0d1614"
+                  tone="#4fe0a6"
+                  background="#0f1a16"
                 />
-                <div style={{ background: 'var(--panel-sunken)', padding: '15px 18px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ background: 'var(--ledger-soft)', padding: '15px 18px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <span className="label">Defence</span>
-                  <span style={{ fontSize: 12, lineHeight: 1.45, color: 'var(--ink-dim)' }}>
+                  <span style={{ fontSize: 12, lineHeight: 1.45, color: 'var(--ledger-dim)' }}>
                     Stripped before the prompt, and the output schema has no field to obey it with.
                   </span>
                 </div>
@@ -306,6 +228,171 @@ export function Catalog() {
             </div>
           )}
         </Panel>
+      </div>
+    </div>
+  );
+}
+
+
+function ProductCard({
+  item,
+  flagged,
+  queued,
+  quantity,
+  busy,
+  onQuantity,
+  onMarkLow,
+  onPropose,
+}: {
+  item: CatalogItem;
+  flagged: boolean;
+  queued: boolean;
+  quantity: number;
+  busy: boolean;
+  onQuantity: (value: number) => void;
+  onMarkLow: () => void;
+  onPropose: () => void;
+}) {
+  const outOfStock = item.stock_status === 'out_of_stock';
+  return (
+    <div
+      style={{
+        border: `1px solid ${flagged ? 'var(--bad-line)' : 'var(--line)'}`,
+        borderRadius: 'var(--radius)',
+        background: 'var(--panel)',
+        boxShadow: 'var(--lift)',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      <div
+        style={{
+          height: 96,
+          background: flagged ? 'var(--bad-bg)' : productTint(item),
+          display: 'grid',
+          placeItems: 'center',
+          fontSize: 38,
+          position: 'relative',
+          filter: outOfStock ? 'grayscale(1)' : undefined,
+          opacity: outOfStock ? 0.6 : 1,
+        }}
+      >
+        {productGlyph(item)}
+        {outOfStock && (
+          <span
+            className="mono"
+            style={{
+              position: 'absolute',
+              bottom: 8,
+              background: 'var(--ink)',
+              color: '#fff',
+              borderRadius: 'var(--radius-pill)',
+              padding: '3px 9px',
+              fontSize: 8.5,
+              letterSpacing: '0.12em',
+            }}
+          >
+            OUT OF STOCK
+          </span>
+        )}
+        {flagged && (
+          <span
+            className="mono"
+            style={{
+              position: 'absolute',
+              top: 8,
+              left: 8,
+              background: 'var(--bad)',
+              color: '#fff',
+              borderRadius: 'var(--radius-pill)',
+              padding: '3px 9px',
+              fontSize: 8.5,
+              letterSpacing: '0.1em',
+            }}
+          >
+            FLAGGED · INJECTION
+          </span>
+        )}
+      </div>
+
+      <div style={{ padding: '12px 14px 14px', display: 'flex', flexDirection: 'column', gap: 10, flexGrow: 1 }}>
+        <span style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.35, color: 'var(--ink)' }}>{item.name}</span>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto' }}>
+          <span style={{ fontFamily: 'var(--display)', fontSize: 19, fontWeight: 700 }}>{money(item.price)}</span>
+          <button
+            onClick={onMarkLow}
+            disabled={queued || outOfStock}
+            style={{
+              height: 30,
+              padding: '0 14px',
+              borderRadius: 'var(--radius-pill)',
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: '0.02em',
+              border: `1px solid ${queued ? 'var(--ok-line)' : 'var(--brand)'}`,
+              background: queued ? 'var(--ok-bg)' : 'var(--brand)',
+              color: queued ? 'var(--ok)' : '#fff',
+            }}
+          >
+            {queued ? 'IN LIST' : outOfStock ? 'ADD' : '+ ADD'}
+          </button>
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 7,
+            paddingTop: 10,
+            borderTop: '1px solid var(--line-soft)',
+          }}
+        >
+          <span
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              border: '1px solid var(--line)',
+              borderRadius: 'var(--radius-pill)',
+            }}
+          >
+            <button
+              onClick={() => onQuantity(quantity - 1)}
+              className="mono"
+              style={{ background: 'none', color: 'var(--ink-dim)', padding: '2px 9px', fontSize: 12 }}
+            >
+              −
+            </button>
+            <span className="mono" style={{ minWidth: 20, textAlign: 'center', fontSize: 11 }}>
+              {quantity}
+            </span>
+            <button
+              onClick={() => onQuantity(quantity + 1)}
+              className="mono"
+              style={{ background: 'none', color: 'var(--ink-dim)', padding: '2px 9px', fontSize: 12 }}
+            >
+              +
+            </button>
+          </span>
+          <button
+            onClick={onPropose}
+            disabled={busy}
+            className="mono"
+            style={{
+              flexGrow: 1,
+              height: 26,
+              borderRadius: 'var(--radius-pill)',
+              border: '1px solid var(--line-hot)',
+              background: 'none',
+              color: 'var(--ink-dim)',
+              fontSize: 9,
+              letterSpacing: '0.12em',
+            }}
+          >
+            {busy ? 'CHECKING…' : 'PROPOSE'}
+          </button>
+        </div>
       </div>
     </div>
   );

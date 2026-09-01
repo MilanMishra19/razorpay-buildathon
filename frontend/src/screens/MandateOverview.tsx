@@ -132,7 +132,7 @@ export function MandateOverview() {
               REVOKE
             </Button>
             <Button variant="primary" onClick={() => runAgent(m.category)} disabled={running || queueEmpty}>
-              {Icon.play('var(--bg)')}
+              {Icon.play('#fff')}
               {running ? 'RUNNING…' : 'RUN AGENT'}
             </Button>
           </div>
@@ -176,7 +176,7 @@ export function MandateOverview() {
 
         <Panel title="STANDING INSTRUCTION">
           <div style={{ padding: '18px 20px', display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-            <span style={{ width: 3, alignSelf: 'stretch', background: 'var(--amber)', flexShrink: 0 }} />
+            <span style={{ width: 3, alignSelf: 'stretch', borderRadius: 2, background: 'var(--brand)', flexShrink: 0 }} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
               <span style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--ink-2)' }}>
                 {m.standing_instruction ?? (
@@ -206,7 +206,7 @@ export function MandateOverview() {
         <Panel style={{ padding: '26px 28px 22px', display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-              <span className="mono" style={{ fontSize: 40, color: 'var(--amber)', letterSpacing: '-0.02em' }}>
+              <span style={{ fontFamily: 'var(--display)', fontSize: 42, fontWeight: 800, letterSpacing: '-0.035em' }}>
                 {money(m.spent_this_period)}
               </span>
               <span className="mono" style={{ fontSize: 16, color: 'var(--ink-faint)' }}>
@@ -234,6 +234,8 @@ export function MandateOverview() {
               gap: 1,
               background: 'var(--line)',
               border: '1px solid var(--line)',
+              borderRadius: 'var(--radius-sm)',
+              overflow: 'hidden',
             }}
           >
             <Stat label="Per-order cap" value={money(m.per_order_cap)} />
@@ -259,7 +261,7 @@ export function MandateOverview() {
                   borderBottom: '1px solid var(--line-soft)',
                 }}
               >
-                <span style={{ width: 3, height: 26, background: eventColor(entry.event), flexShrink: 0 }} />
+                <span style={{ width: 3, height: 26, borderRadius: 2, background: eventColor(entry.event), flexShrink: 0 }} />
                 <span
                   className="mono"
                   style={{ fontSize: 10, letterSpacing: '0.1em', color: eventColor(entry.event), width: 130, textTransform: 'uppercase' }}
@@ -286,7 +288,7 @@ export function MandateOverview() {
             ) : (
               queueForCategory.map((entry) => (
                 <div key={entry.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: 'var(--ink-2)' }}>
-                  <span style={{ width: 5, height: 5, background: 'var(--amber)', flexShrink: 0 }} />
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand)', flexShrink: 0 }} />
                   {entry.catalog_name ?? `#${entry.catalog_id}`}
                 </div>
               ))
@@ -365,7 +367,7 @@ function Purchases({ carts, catalog }: { carts: CartMandate[]; catalog: CatalogI
               borderBottom: '1px solid var(--line-soft)',
             }}
           >
-            <span className="mono" style={{ width: 30, fontSize: 11, color: '#3d4954' }}>
+            <span className="mono" style={{ width: 30, fontSize: 11, color: 'var(--ink-ghost)' }}>
               {String(catalogId).padStart(2, '0')}
             </span>
             <span style={{ flexGrow: 1, fontSize: 13, color: 'var(--ink-2)' }}>
@@ -630,7 +632,7 @@ function MandateForm({
         <button
           type="submit"
           disabled={busy}
-          style={{ height: 46, flexGrow: 1, background: 'var(--amber)', color: 'var(--bg)', fontSize: 12, fontWeight: 700, letterSpacing: '0.16em' }}
+          style={{ height: 46, flexGrow: 1, background: 'var(--brand)', color: '#fff', fontSize: 12, fontWeight: 700, letterSpacing: '0.16em' }}
         >
           {busy ? 'WORKING…' : submitLabel}
         </button>

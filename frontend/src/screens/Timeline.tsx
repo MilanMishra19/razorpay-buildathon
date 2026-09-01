@@ -36,10 +36,12 @@ export function Timeline() {
                 onClick={() => setFilter(item.key)}
                 className="mono"
                 style={{
-                  padding: '7px 13px',
-                  border: `1px solid ${active ? 'var(--amber)' : 'var(--line)'}`,
-                  color: active ? 'var(--amber)' : 'var(--ink-faint)',
-                  background: 'transparent',
+                  height: 32,
+                  padding: '0 14px',
+                  borderRadius: 'var(--radius-pill)',
+                  border: `1px solid ${active ? 'var(--ink)' : 'var(--line)'}`,
+                  color: active ? '#fff' : 'var(--ink-dim)',
+                  background: active ? 'var(--ink)' : 'var(--panel)',
                   fontSize: 10,
                   letterSpacing: '0.12em',
                   textTransform: 'uppercase',
@@ -76,10 +78,10 @@ export function Timeline() {
                 style={{ display: 'flex', alignItems: 'center', padding: '12px 22px', borderBottom: '1px solid var(--line-soft)' }}
               >
                 <span style={{ width: 56, display: 'flex', alignItems: 'center', gap: 11 }}>
-                  <span className="mono" style={{ fontSize: 11, color: '#3d4954' }}>
+                  <span className="mono" style={{ fontSize: 11, color: 'var(--ink-ghost)' }}>
                     {String(seq).padStart(2, '0')}
                   </span>
-                  <span style={{ width: 7, height: 7, background: eventColor(entry.event) }} />
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: eventColor(entry.event) }} />
                 </span>
                 <span
                   className="mono"

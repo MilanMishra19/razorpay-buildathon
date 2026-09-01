@@ -19,8 +19,9 @@ export function BudgetMeter({ spent, cap, escalationPct, pending = 0, height = 5
         style={{
           position: 'relative',
           height,
-          background: 'var(--void)',
+          background: 'var(--panel-sunken)',
           border: '1px solid var(--line)',
+          borderRadius: 'var(--radius-sm)',
           overflow: 'hidden',
         }}
       >
@@ -29,7 +30,7 @@ export function BudgetMeter({ spent, cap, escalationPct, pending = 0, height = 5
             position: 'absolute',
             inset: 0,
             width: `${spentPct}%`,
-            background: pending ? 'var(--amber-deep)' : 'linear-gradient(90deg, var(--amber-deep), var(--amber))',
+            background: pending ? 'var(--ink-2)' : 'linear-gradient(90deg, #2f5f4a, var(--ok))',
           }}
         />
         {pending > 0 && (
@@ -40,7 +41,7 @@ export function BudgetMeter({ spent, cap, escalationPct, pending = 0, height = 5
               bottom: 0,
               left: `${spentPct}%`,
               width: `${Math.max(0, projectedPct - spentPct)}%`,
-              background: 'linear-gradient(90deg, var(--amber), var(--amber-bright))',
+              background: 'linear-gradient(90deg, var(--brand), #ff8a54)',
             }}
           />
         )}

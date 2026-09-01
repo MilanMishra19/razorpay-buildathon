@@ -38,8 +38,8 @@ export function Login() {
         fontSize: 11,
         fontWeight: 600,
         letterSpacing: '0.18em',
-        background: mode === value ? 'var(--amber)' : 'transparent',
-        color: mode === value ? 'var(--bg)' : 'var(--ink-faint)',
+        background: mode === value ? 'var(--panel-sunken)' : 'transparent',
+        color: mode === value ? 'var(--ink)' : 'var(--ink-faint)',
       }}
     >
       {label}
@@ -64,23 +64,35 @@ export function Login() {
           position: 'absolute',
           inset: 0,
           backgroundImage:
-            'linear-gradient(#131a20 1px, transparent 1px), linear-gradient(90deg, #131a20 1px, transparent 1px)',
-          backgroundSize: '48px 48px',
-          opacity: 0.5,
+            'radial-gradient(circle at 20% 15%, #ffe9dc 0, transparent 45%), radial-gradient(circle at 82% 78%, #e8f3ec 0, transparent 48%)',
         }}
       />
 
       <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {Icon.logo('var(--amber)', 26)}
-          <span style={{ fontSize: 26, fontWeight: 700, letterSpacing: '0.34em', paddingLeft: 4 }}>AETHIS</span>
+          <span
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 13,
+              background: 'var(--brand)',
+              display: 'grid',
+              placeItems: 'center',
+              boxShadow: '0 8px 20px -6px rgba(255, 95, 31, 0.55)',
+            }}
+          >
+            {Icon.logo('#fff', 25)}
+          </span>
+          <span style={{ fontFamily: 'var(--display)', fontSize: 34, fontWeight: 800, letterSpacing: '-0.035em' }}>
+            aethis
+          </span>
         </div>
-        <span className="label">Agent Checkout Control</span>
+        <span className="label">Groceries your agent buys, and you can audit</span>
       </div>
 
       <form
         onSubmit={submit}
-        style={{ position: 'relative', width: 420, border: '1px solid var(--line)', background: 'var(--panel)' }}
+        style={{ position: 'relative', width: 420, border: '1px solid var(--line)', borderRadius: 'var(--radius)', background: 'var(--panel)', boxShadow: 'var(--lift-hi)', overflow: 'hidden' }}
       >
         <div style={{ display: 'flex', borderBottom: '1px solid var(--line)' }}>
           {tab('signin', 'SIGN IN')}
@@ -125,8 +137,9 @@ export function Login() {
             disabled={busy}
             style={{
               height: 48,
-              background: 'var(--amber)',
-              color: 'var(--bg)',
+              borderRadius: 'var(--radius-pill)',
+              background: 'var(--brand)',
+              color: '#fff',
               fontSize: 12,
               fontWeight: 700,
               letterSpacing: '0.16em',

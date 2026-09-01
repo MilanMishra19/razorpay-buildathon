@@ -25,13 +25,16 @@ export function CategoryTabs({ categories, mandates, selected, onSelect }: Props
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              padding: '8px 14px',
-              background: active ? 'var(--panel)' : 'transparent',
-              border: `1px solid ${active ? 'var(--amber)' : 'var(--line)'}`,
-              color: active ? 'var(--amber)' : 'var(--ink-faint)',
-              fontSize: 12,
+              height: 36,
+              padding: '0 16px',
+              borderRadius: 'var(--radius-pill)',
+              background: active ? 'var(--ink)' : 'var(--panel)',
+              border: `1px solid ${active ? 'var(--ink)' : 'var(--line)'}`,
+              color: active ? '#fff' : 'var(--ink-dim)',
+              fontSize: 12.5,
               fontWeight: 600,
-              letterSpacing: '0.04em',
+              letterSpacing: '-0.01em',
+              boxShadow: active ? 'none' : 'var(--lift)',
             }}
           >
             {titleCase(category)}
@@ -39,7 +42,8 @@ export function CategoryTabs({ categories, mandates, selected, onSelect }: Props
               style={{
                 width: 6,
                 height: 6,
-                background: hasMandate ? 'var(--ok)' : 'var(--ink-ghost)',
+                borderRadius: '50%',
+                background: hasMandate ? (active ? '#5fd6a4' : 'var(--ok)') : 'var(--ink-ghost)',
                 flexShrink: 0,
               }}
               title={hasMandate ? 'covered by an active mandate' : 'no mandate yet'}

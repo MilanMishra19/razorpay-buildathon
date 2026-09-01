@@ -71,7 +71,7 @@ export function Approvals() {
               <div style={{ flexGrow: 1, minWidth: 380, display: 'flex', flexDirection: 'column', gap: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                   {Icon.warn('var(--amber)', 19)}
-                  <span style={{ fontSize: 16, fontWeight: 600, color: '#f0c67e' }}>
+                  <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--amber-bright)' }}>
                     {cart.rejection_reason ?? 'Requires approval'}
                   </span>
                   <span className="mono" style={{ fontSize: 10, color: 'var(--ink-faint)', letterSpacing: '0.1em' }}>
@@ -104,7 +104,7 @@ export function Approvals() {
 
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                   <Button variant="ok" onClick={() => resolve(cart, 'approve')} disabled={busy === cart.id}>
-                    {Icon.check('#05130d')}
+                    {Icon.check('#fff')}
                     APPROVE &amp; PAY
                   </Button>
                   <Button variant="danger" onClick={() => resolve(cart, 'decline')} disabled={busy === cart.id}>

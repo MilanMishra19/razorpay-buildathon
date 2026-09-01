@@ -64,7 +64,7 @@ Environment:
 
 ## Build phases
 
-Phases 0–9 are done; each says what it actually shipped.
+Phases 0–10 are done; each says what it actually shipped.
 
 0. **Contract lock** — reconcile enums across docs, add the missing schema tables (`restock_list`, `agent_runs`, denormalized `user_id`, partial indexes), add DB driver + JWT lib + `springdoc-openapi` + validation to `pom.xml`, decide service-to-service auth, stand up docker-compose + a seed script.
 1. **Backend: auth + data layer** — entities, Flyway migrations, register/login + JWT filter, CORS, catalog endpoints + seed (including the poisoned entry), intent-mandate issue / active / revoke with the first audit write.
@@ -75,7 +75,8 @@ Phases 0–9 are done; each says what it actually shipped.
 6. **Integration + demo polish** — Dockerfiles for all three services and a `full` compose profile, `/demo` reset + tamper + restore endpoints behind `DEMO_TOOLS`, and `DEMO.md` as the scripted walkthrough.
 7. **Mandates per category** — one active mandate per `(user, category)` enforced by a partial unique index, a category tab bar across every screen, and a cycle per mandate: three mandates run three cycles against three independent budgets.
 8. **Real Razorpay checkout** — Checkout.js in the browser against a real test-mode order, HMAC-SHA256 verification of `order_id|payment_id` on the server with a constant-time compare, and a forged signature recorded as `failed` in the ledger rather than thrown away.
-9. **Substitution intelligence** — when a queued item is out of stock the agent may buy the nearest in-stock item in the same category and say why; the swap is a claim, so the agent checks it against the catalog before proposing, and the guardrail routes any surviving swap to approval even when the budget has room. ✅
+9. **Substitution intelligence** — when a queued item is out of stock the agent may buy the nearest in-stock item in the same category and say why; the swap is a claim, so the agent checks it against the catalog before proposing, and the guardrail routes any surviving swap to approval even when the budget has room.
+10. **Quick-commerce re-skin** — the storefront (catalog, mandate, approvals) becomes a warm product-card grid on paper with a tangerine accent, while raw machine output — the prompt slice, the model's JSON — keeps a dark monospaced register. Two looks, because there are two audiences: the shopper and the auditor. ✅
 
 ## Non-goals (deliberate scope cuts)
 

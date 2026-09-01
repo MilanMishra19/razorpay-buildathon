@@ -106,7 +106,7 @@ export function ChainIntegrity() {
                 <div
                   style={{ border: `1px solid ${border}`, background, padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 18 }}
                 >
-                  <span className="mono" style={{ width: 26, fontSize: 14, color: isBad ? 'var(--bad)' : isOk ? 'var(--ink-dim)' : '#3d4954' }}>
+                  <span className="mono" style={{ width: 26, fontSize: 14, color: isBad ? 'var(--bad)' : isOk ? 'var(--ink-dim)' : 'var(--ink-ghost)' }}>
                     {String(n).padStart(2, '0')}
                   </span>
                   <span
@@ -158,9 +158,9 @@ export function ChainIntegrity() {
             <button
               onClick={verify}
               disabled={phase === 'running'}
-              style={{ height: 46, background: 'var(--amber)', color: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, fontSize: 12, fontWeight: 700, letterSpacing: '0.16em' }}
+              style={{ height: 46, background: 'var(--brand)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, fontSize: 12, fontWeight: 700, letterSpacing: '0.16em' }}
             >
-              {Icon.shield('var(--bg)')}
+              {Icon.shield('#fff')}
               {view.button}
             </button>
           </div>

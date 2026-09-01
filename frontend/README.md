@@ -1,75 +1,63 @@
-# React + TypeScript + Vite
+# Aethis Web (React + Vite)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The control surface for the shopping agent: issue mandates, watch cycles run, approve what the
+guardrail escalates, and verify the ledger. Screen-by-screen intent lives in
+[`frontend_screens.md`](frontend_screens.md).
 
-Currently, two official plugins are available:
+## Running
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```bash
+npm install
+npm run dev          # http://localhost:5173
 ```
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
+| Var | Default | What it points at |
+|---|---|---|
+| `VITE_CHECKOUT_API_URL` | `http://localhost:8080` | Spring Boot checkout API |
+| `VITE_AGENT_API_URL` | `http://localhost:8000` | FastAPI agent |
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+The whole stack (Postgres + both services + this app behind nginx) comes up with
+`docker compose --profile full up --build` from the repo root.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Design
 
+Two visual registers, because there are two audiences.
+
+**The storefront** — Catalog, Mandate, Approvals, Login — is quick-commerce: warm paper ground,
+white cards on a soft lift, rounded corners, pill controls, and a tangerine accent. Prices and
+headings are set in Bricolage Grotesque; body copy in Plus Jakarta Sans. The Catalog is a product
+grid, and each tile's glyph is derived from the item's own name and category, so a new catalog row
+renders without a code change.
+
+**The evidence** — the injection panel's prompt slice, the model's raw JSON, the demanded-vs-purchased
+cells — is dark and monospaced. Raw machine output looks like raw machine output, and nothing else
+in the app does.
+
+Timeline and Chain sit in the storefront register deliberately: their rows are human-readable
+summaries of what happened, not machine output, so they stay dense rather than dark.
+
+Everything is driven by tokens in [`src/styles/tokens.css`](src/styles/tokens.css) — colours,
+radii, lift, and the three type families. Components read the tokens, so re-theming is a matter of
+changing values there rather than touching screens.
+
+## Shape
+
+```
+src/
+  api/         typed client, snake_case wire format, polling hook
+  auth/        in-memory JWT, protected routes, 401 interceptor
+  components/  Panel / Button / Chip primitives, budget meter, product glyphs
+  screens/     the six screens
+  styles/      the token file
+```
+
+State is deliberately plain: `useResource` polls an endpoint on an interval and exposes
+`{ data, loading, error, reload }`. No store, no cache layer — the server is the truth, and every
+screen re-reads it.
+
+## Checks
+
+```bash
+npx tsc --noEmit -p tsconfig.app.json
+npm run build
 ```

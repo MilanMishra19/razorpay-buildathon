@@ -91,7 +91,7 @@ export function AwaitingCheckout({ payments, token, email, onSettled }: Props) {
                 onClick={() => complete(payment)}
                 disabled={busy === payment.payment_mandate_id}
               >
-                {Icon.shield('var(--bg)')}
+                {Icon.shield('#fff')}
                 {busy === payment.payment_mandate_id ? 'IN CHECKOUT…' : 'COMPLETE PAYMENT'}
               </Button>
             </div>

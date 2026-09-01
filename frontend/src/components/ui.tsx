@@ -27,17 +27,28 @@ export function Panel({
   title?: string;
   actions?: ReactNode;
   children: ReactNode;
-  tone?: 'neutral' | 'ok' | 'warn' | 'bad';
+  tone?: 'neutral' | 'ok' | 'warn' | 'bad' | 'ledger';
   style?: CSSProperties;
 }) {
   const tones = {
-    neutral: { border: 'var(--line)', background: 'var(--panel)' },
-    ok: { border: 'var(--ok-line)', background: 'var(--ok-bg)' },
-    warn: { border: 'var(--amber-line)', background: 'var(--amber-bg)' },
-    bad: { border: 'var(--bad-line)', background: 'var(--bad-bg)' },
+    neutral: { border: 'var(--line)', background: 'var(--panel)', ink: 'var(--ink-dim)' },
+    ok: { border: 'var(--ok-line)', background: 'var(--ok-bg)', ink: 'var(--ok)' },
+    warn: { border: 'var(--amber-line)', background: 'var(--amber-bg)', ink: 'var(--amber)' },
+    bad: { border: 'var(--bad-line)', background: 'var(--bad-bg)', ink: 'var(--bad)' },
+    ledger: { border: 'var(--ledger-line)', background: 'var(--ledger)', ink: 'var(--ledger-dim)' },
   };
   return (
-    <section style={{ border: `1px solid ${tones[tone].border}`, background: tones[tone].background, ...style }}>
+    <section
+      className={tone === 'ledger' ? 'ledger' : undefined}
+      style={{
+        border: `1px solid ${tones[tone].border}`,
+        background: tones[tone].background,
+        borderRadius: 'var(--radius)',
+        boxShadow: tone === 'neutral' ? 'var(--lift)' : 'none',
+        overflow: 'hidden',
+        ...style,
+      }}
+    >
       {(title || actions) && (
         <header
           style={{
@@ -48,7 +59,10 @@ export function Panel({
             borderBottom: `1px solid ${tones[tone].border}`,
           }}
         >
-          <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.18em', color: 'var(--ink-dim)' }}>
+          <span
+            className="mono"
+            style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', color: tones[tone].ink }}
+          >
             {title}
           </span>
           {actions}
@@ -71,24 +85,25 @@ export function Button({
   disabled?: boolean;
 }) {
   const variants = {
-    primary: { background: 'var(--amber)', color: 'var(--bg)', border: '1px solid var(--amber)' },
-    ok: { background: 'var(--ok)', color: '#05130d', border: '1px solid var(--ok)' },
-    ghost: { background: 'transparent', color: 'var(--ink-dim)', border: '1px solid var(--line-hot)' },
-    danger: { background: 'transparent', color: 'var(--bad)', border: `1px solid var(--bad-line)` },
+    primary: { background: 'var(--brand)', color: '#fff', border: '1px solid var(--brand)' },
+    ok: { background: 'var(--ok)', color: '#fff', border: '1px solid var(--ok)' },
+    ghost: { background: 'var(--panel)', color: 'var(--ink-2)', border: '1px solid var(--line-hot)' },
+    danger: { background: 'var(--panel)', color: 'var(--bad)', border: '1px solid var(--bad-line)' },
   };
   return (
     <button
       onClick={onClick}
       disabled={disabled}
       style={{
-        height: 40,
-        padding: '0 20px',
+        height: 42,
+        padding: '0 22px',
         display: 'inline-flex',
         alignItems: 'center',
         gap: 9,
         fontSize: 11,
         fontWeight: 700,
-        letterSpacing: '0.14em',
+        letterSpacing: '0.12em',
+        borderRadius: 'var(--radius-pill)',
         ...variants[variant],
       }}
     >
@@ -122,7 +137,7 @@ export function statusColor(status: CartStatus): string {
 }
 
 export function Pip({ color }: { color: string }) {
-  return <span style={{ width: 6, height: 6, background: color, display: 'inline-block', flexShrink: 0 }} />;
+  return <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, display: 'inline-block', flexShrink: 0 }} />;
 }
 
 export function Chip({ color, children }: { color: string; children: ReactNode }) {
@@ -134,7 +149,8 @@ export function Chip({ color, children }: { color: string; children: ReactNode }
         alignItems: 'center',
         gap: 7,
         border: `1px solid ${color}`,
-        padding: '4px 9px',
+        borderRadius: 'var(--radius-pill)',
+        padding: '4px 11px',
         fontSize: 10,
         letterSpacing: '0.14em',
         color,
@@ -158,8 +174,9 @@ export function Notice({ tone, children }: { tone: 'bad' | 'ok'; children: React
   return (
     <div
       style={{
-        border: `1px solid ${color}`,
+        border: `1px solid ${tone === 'bad' ? 'var(--bad-line)' : 'var(--ok-line)'}`,
         background: tone === 'bad' ? 'var(--bad-bg)' : 'var(--ok-bg)',
+        borderRadius: 'var(--radius-sm)',
         padding: '11px 15px',
         fontSize: 12,
         color,
