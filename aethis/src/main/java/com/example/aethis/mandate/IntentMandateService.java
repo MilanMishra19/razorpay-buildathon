@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 
 @Service
 public class IntentMandateService {
@@ -37,8 +38,10 @@ public class IntentMandateService {
 
     @Transactional
     public MandateResponse issue(Long userId, IssueMandateRequest request) {
-        mandates.findByUserIdAndStatus(userId, MandateStatus.ACTIVE).ifPresent(existing -> {
-            throw ApiException.conflict("User already has an active mandate; revoke it before issuing a new one");
+        String category = request.category().trim().toLowerCase();
+        mandates.findByUserIdAndCategoryAndStatus(userId, category, MandateStatus.ACTIVE).ifPresent(existing -> {
+            throw ApiException.conflict(
+                    "An active mandate already covers " + category + "; revoke it before issuing another");
         });
 
         BigDecimal escalationThresholdPct = request.escalationThresholdPct() != null
@@ -47,7 +50,7 @@ public class IntentMandateService {
 
         IntentMandate mandate = new IntentMandate();
         mandate.setUserId(userId);
-        mandate.setCategory(request.category().trim().toLowerCase());
+        mandate.setCategory(category);
         mandate.setStandingInstruction(normalise(request.standingInstruction()));
         mandate.setPerOrderCap(Money.normalize(request.perOrderCap()));
         mandate.setMonthlyCap(Money.normalize(request.monthlyCap()));
@@ -71,10 +74,17 @@ public class IntentMandateService {
     }
 
     @Transactional(readOnly = true)
-    public MandateResponse activeFor(Long userId) {
-        return mandates.findByUserIdAndStatus(userId, MandateStatus.ACTIVE)
+    public List<MandateResponse> activeFor(Long userId, String category) {
+        if (category != null && !category.isBlank()) {
+            return mandates
+                    .findByUserIdAndCategoryAndStatus(userId, category.trim().toLowerCase(), MandateStatus.ACTIVE)
+                    .map(this::withSpend)
+                    .map(List::of)
+                    .orElseGet(List::of);
+        }
+        return mandates.findByUserIdAndStatusOrderByCategoryAsc(userId, MandateStatus.ACTIVE).stream()
                 .map(this::withSpend)
-                .orElseThrow(() -> ApiException.notFound("No active mandate for this user"));
+                .toList();
     }
 
     private MandateResponse withSpend(IntentMandate mandate) {

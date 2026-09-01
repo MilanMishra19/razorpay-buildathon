@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { api, ApiError, post } from '../api/client';
+import { api, post } from '../api/client';
 import { useResource } from '../api/useResource';
 import { useSession } from '../auth/AuthContext';
 import type { AgentRun, CartStatus, CatalogItem, Mandate, RestockEntry } from '../api/types';
+import { loadActiveMandates, loadCategories, mandateFor } from '../api/mandates';
+import { CategoryTabs } from '../components/CategoryTabs';
 import { Empty, Icon, Notice, Panel, money, statusColor } from '../components/ui';
 
 interface ProposeOutcome {
@@ -13,21 +15,14 @@ interface ProposeOutcome {
   quantity: number;
 }
 
-async function loadActive(token: string): Promise<Mandate | null> {
-  try {
-    return await api.checkout<Mandate>('/intent-mandates/active', token);
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 404) return null;
-    throw error;
-  }
-}
-
 export function Catalog() {
   const session = useSession();
-  const catalog = useResource<CatalogItem[]>((token) => api.checkout('/catalog?category=groceries', token), []);
+  const catalog = useResource<CatalogItem[]>((token) => api.checkout('/catalog', token), []);
   const restock = useResource<RestockEntry[]>((token) => api.checkout('/restock-list', token), []);
   const runs = useResource<AgentRun[]>((token) => api.checkout('/agent-runs?limit=1', token), []);
-  const mandate = useResource<Mandate | null>(loadActive, []);
+  const mandates = useResource<Mandate[]>(loadActiveMandates, []);
+  const categories = useResource<string[]>(loadCategories, []);
+  const [category, setCategory] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [quantities, setQuantities] = useState<Record<number, number>>({});
   const [outcome, setOutcome] = useState<ProposeOutcome | null>(null);
@@ -38,8 +33,9 @@ export function Catalog() {
     setQuantities((prev) => ({ ...prev, [id]: Math.max(1, Math.min(99, value)) }));
 
   async function proposeDirect(item: CatalogItem) {
-    if (!mandate.data) {
-      setError('Issue a mandate first — there is nothing to check the cart against.');
+    const covering = mandateFor(mandates.data ?? [], item.category);
+    if (!covering) {
+      setError(`No active mandate covers ${item.category} — issue one on the Mandate screen first.`);
       return;
     }
     setProposing(item.id);
@@ -50,7 +46,7 @@ export function Catalog() {
         '/cart-mandates',
         session.token,
         post({
-          intent_mandate_id: mandate.data.id,
+          intent_mandate_id: covering.id,
           cart_items: [{ catalog_id: item.id, quantity: qtyFor(item.id) }],
         }),
       );
@@ -61,7 +57,7 @@ export function Catalog() {
         itemName: item.name,
         quantity: qtyFor(item.id),
       });
-      mandate.reload();
+      mandates.reload();
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -69,6 +65,9 @@ export function Catalog() {
     }
   }
 
+  const allCategories = categories.data ?? [];
+  const selected = category ?? allCategories[0] ?? null;
+  const visible = (catalog.data ?? []).filter((item) => !selected || item.category === selected);
   const queued = new Set((restock.data ?? []).map((entry) => entry.catalog_id));
   const latest = runs.data?.[0] ?? null;
   const flagged = new Set(latest?.flagged_catalog_ids ?? []);
@@ -88,7 +87,7 @@ export function Catalog() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-          <span className="label">Merchant catalog · groceries</span>
+          <span className="label">Merchant catalog{selected ? ` · ${selected}` : ''}</span>
           <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700 }}>What the agent can browse</h1>
         </div>
         {flagged.size > 0 && (
@@ -101,6 +100,13 @@ export function Catalog() {
           </span>
         )}
       </div>
+
+      <CategoryTabs
+        categories={allCategories}
+        mandates={mandates.data ?? []}
+        selected={selected}
+        onSelect={setCategory}
+      />
 
       {error && <Notice tone="bad">{error}</Notice>}
 
@@ -143,7 +149,7 @@ export function Catalog() {
             <span style={{ width: 108, textAlign: 'right' }}>STOCK</span>
           </div>
 
-          {(catalog.data ?? []).map((item) => {
+          {visible.map((item) => {
             const isFlagged = flagged.has(item.id);
             const inQueue = queued.has(item.id);
             return (
@@ -235,7 +241,7 @@ export function Catalog() {
             className="mono"
             style={{ padding: '11px 16px', borderTop: '1px solid var(--line)', background: 'var(--panel-sunken)', fontSize: 10, color: 'var(--ink-ghost)' }}
           >
-            {(catalog.data ?? []).length} listings · screened before every cycle
+            {visible.length} listings · screened before every cycle
           </div>
         </Panel>
 

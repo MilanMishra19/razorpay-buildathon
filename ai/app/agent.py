@@ -1,26 +1,53 @@
 from .checkout_client import CheckoutClient
 from .injection import screen
 from .llm import Decider
-from .models import RunResult
+from .models import Mandate, RestockEntry, RunReport, RunResult
 
 
 class NoActiveMandate(RuntimeError):
     pass
 
 
+async def run_all(
+    client: CheckoutClient,
+    decider: Decider,
+    user_id: int,
+    fallback_instruction: str,
+    category: str | None = None,
+) -> RunReport:
+    mandates = await client.active_mandates(user_id)
+    if category:
+        wanted = category.strip().lower()
+        mandates = [mandate for mandate in mandates if mandate.category == wanted]
+    if not mandates:
+        raise NoActiveMandate(
+            f"no active mandate covering {category}" if category else "user has no active mandate"
+        )
+
+    entries = await client.restock_list(user_id)
+    runs: list[RunResult] = []
+    skipped: dict[str, str] = {}
+
+    for mandate in mandates:
+        queued = [entry for entry in entries if entry.catalog_category == mandate.category]
+        if not queued:
+            skipped[mandate.category] = "nothing queued for this category"
+            continue
+        runs.append(await run_cycle(client, decider, user_id, mandate, queued, fallback_instruction))
+
+    return RunReport(runs=runs, skipped=skipped)
+
+
 async def run_cycle(
     client: CheckoutClient,
     decider: Decider,
     user_id: int,
-    instruction: str,
+    mandate: Mandate,
+    entries: list[RestockEntry],
+    fallback_instruction: str,
 ) -> RunResult:
-    mandate = await client.active_mandate(user_id)
-    if mandate is None:
-        raise NoActiveMandate("user has no active intent mandate")
+    instruction = mandate.standing_instruction or fallback_instruction
 
-    instruction = mandate.standing_instruction or instruction
-
-    entries = await client.restock_list(user_id)
     catalog = await client.catalog(user_id, mandate.category)
     sanitized, flagged = screen(catalog)
 
@@ -43,6 +70,7 @@ async def run_cycle(
     if not kept:
         agent_run_id = await client.record_run(user_id, run_payload)
         return RunResult(
+            category=mandate.category,
             agent_run_id=agent_run_id,
             outcome="nothing_proposed",
             reason="the model chose no eligible items",
@@ -62,9 +90,10 @@ async def run_cycle(
         payment_status = payment.get("payment_status")
 
     if cart.status in ("approved", "pending_approval"):
-        await client.consume_restock(user_id)
+        await client.consume_restock(user_id, [entry.catalog_id for entry in entries])
 
     return RunResult(
+        category=mandate.category,
         agent_run_id=agent_run_id,
         cart_mandate_id=cart.cart_mandate_id,
         outcome=cart.status,

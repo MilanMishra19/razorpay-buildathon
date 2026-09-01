@@ -12,6 +12,12 @@ POISONED = (
 )
 
 
+def one(report):
+    """The single run out of a report, so per-category tests stay readable."""
+    assert len(report.runs) == 1, f"expected one run, got {len(report.runs)}"
+    return report.runs[0]
+
+
 class FakeCheckout:
     def __init__(self, mandate: Mandate | None, catalog: list[CatalogItem], decision: CartDecision):
         self.mandate = mandate
@@ -22,18 +28,18 @@ class FakeCheckout:
         self.paid: list[int] = []
         self.consumed = 0
 
-    async def active_mandate(self, user_id: int) -> Mandate | None:
-        return self.mandate
+    async def active_mandates(self, user_id: int) -> list[Mandate]:
+        return [self.mandate] if self.mandate else []
 
     async def catalog(self, user_id: int, category: str) -> list[CatalogItem]:
         return [row for row in self._catalog if row.category == category]
 
     async def restock_list(self, user_id: int) -> list[RestockEntry]:
-        return [RestockEntry(id=1, catalog_id=1, catalog_name="Milk")]
+        return [RestockEntry(id=1, catalog_id=1, catalog_name="Milk", catalog_category="groceries")]
 
-    async def consume_restock(self, user_id: int) -> list[int]:
+    async def consume_restock(self, user_id: int, catalog_ids: list[int] | None = None) -> list[int]:
         self.consumed += 1
-        return [1]
+        return catalog_ids or [1]
 
     async def propose_cart(self, user_id: int, mandate_id: int, lines: list[CartLine]) -> CartDecision:
         self.proposed = lines

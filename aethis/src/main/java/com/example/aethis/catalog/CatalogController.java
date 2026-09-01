@@ -17,9 +17,15 @@ public class CatalogController {
     }
 
     @GetMapping("/catalog")
-    public List<CatalogItemResponse> list(@RequestParam String category) {
-        return catalog.findByCategoryOrderByNameAsc(category).stream()
-                .map(CatalogItemResponse::of)
-                .toList();
+    public List<CatalogItemResponse> list(@RequestParam(required = false) String category) {
+        var items = category == null || category.isBlank()
+                ? catalog.findAllByOrderByCategoryAscNameAsc()
+                : catalog.findByCategoryOrderByNameAsc(category.trim().toLowerCase());
+        return items.stream().map(CatalogItemResponse::of).toList();
+    }
+
+    @GetMapping("/catalog/categories")
+    public List<String> categories() {
+        return catalog.findDistinctCategories();
     }
 }

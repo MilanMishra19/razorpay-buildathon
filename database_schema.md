@@ -21,7 +21,7 @@ The person who owns the shopping agent and issues mandates to it.
 
 ## 2. `intent_mandates`
 
-The user-issued policy that authorizes the agent to act. One active mandate per user at a time; re-issued when it expires.
+The user-issued policy that authorizes the agent to act. **One active mandate per user per category** — groceries, household and personal care each get their own brief, their own caps and their own budget, and spend in one never draws down another. Re-issued when it expires.
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
@@ -37,7 +37,7 @@ The user-issued policy that authorizes the agent to act. One active mandate per 
 | `status` | VARCHAR | NOT NULL | `active` \| `expired` \| `revoked` |
 | `mandate_hash` | VARCHAR | NOT NULL | hash of this mandate's content, referenced by downstream cart mandates and the audit log |
 
-**Constraint:** partial unique index on `user_id WHERE status = 'active'` — enforces "one active mandate per user" at the database level, not just in application code.
+**Constraint:** partial unique index on `(user_id, category) WHERE status = 'ACTIVE'` — enforces "one active mandate per category" at the database level, not just in application code.
 
 ---
 

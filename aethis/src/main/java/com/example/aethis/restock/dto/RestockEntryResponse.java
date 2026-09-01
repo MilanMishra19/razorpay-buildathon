@@ -6,5 +6,6 @@ public record RestockEntryResponse(
         Long id,
         Long catalogId,
         String catalogName,
+        String catalogCategory,
         Instant addedAt) {
 }

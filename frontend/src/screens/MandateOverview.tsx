@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react';
-import { api, ApiError, post } from '../api/client';
+import { api, post } from '../api/client';
 import { useResource } from '../api/useResource';
 import { useSession } from '../auth/AuthContext';
 import type {
+  AgentRunReport,
   AgentRunResult,
   AuditEntry,
   CartMandate,
@@ -11,27 +12,22 @@ import type {
   Mandate,
   RestockEntry,
 } from '../api/types';
+import { loadActiveMandates, loadCategories, mandateFor, titleCase } from '../api/mandates';
 import { BudgetMeter } from '../components/BudgetMeter';
+import { CategoryTabs } from '../components/CategoryTabs';
 import { Button, Chip, Empty, Icon, Notice, Panel, clockTime, daysUntil, eventColor, money } from '../components/ui';
-
-async function loadActive(token: string): Promise<Mandate | null> {
-  try {
-    return await api.checkout<Mandate>('/intent-mandates/active', token);
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 404) return null;
-    throw error;
-  }
-}
 
 export function MandateOverview() {
   const session = useSession();
-  const mandate = useResource<Mandate | null>(loadActive, []);
+  const mandates = useResource<Mandate[]>(loadActiveMandates, []);
+  const categories = useResource<string[]>(loadCategories, []);
+  const [category, setCategory] = useState<string | null>(null);
   const audit = useResource<AuditEntry[]>((token) => api.checkout('/audit-log', token), []);
   const chain = useResource<ChainVerification>((token) => api.checkout('/audit-log/verify', token), []);
   const restock = useResource<RestockEntry[]>((token) => api.checkout('/restock-list', token), []);
   const demo = useResource<{ enabled: boolean }>((token) => api.checkout('/demo/status', token), []);
   const carts = useResource<CartMandate[]>((token) => api.checkout('/cart-mandates', token), []);
-  const catalog = useResource<CatalogItem[]>((token) => api.checkout('/catalog?category=groceries', token), []);
+  const catalog = useResource<CatalogItem[]>((token) => api.checkout('/catalog', token), []);
 
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState<AgentRunResult | null>(null);
@@ -39,20 +35,23 @@ export function MandateOverview() {
   const [editing, setEditing] = useState(false);
 
   function refreshAll() {
-    mandate.reload();
+    mandates.reload();
     audit.reload();
     chain.reload();
     restock.reload();
     carts.reload();
   }
 
-  async function runAgent() {
+  async function runAgent(forCategory: string) {
     setRunning(true);
     setRunError(null);
     setRunResult(null);
     try {
-      const result = await api.agent<AgentRunResult>('/agent/run', post({ user_id: session.userId }));
-      setRunResult(result);
+      const report = await api.agent<AgentRunReport>(
+        '/agent/run',
+        post({ user_id: session.userId, category: forCategory }),
+      );
+      setRunResult(report.runs[0] ?? null);
       refreshAll();
     } catch (error) {
       setRunError((error as Error).message);
@@ -66,17 +65,34 @@ export function MandateOverview() {
     refreshAll();
   }
 
-  if (mandate.loading) return <Empty>Loading mandate…</Empty>;
-  if (mandate.error) return <Notice tone="bad">{mandate.error}</Notice>;
-  if (!mandate.data) return <IssueMandate onIssued={refreshAll} />;
+  if (mandates.loading) return <Empty>Loading mandates…</Empty>;
+  if (mandates.error) return <Notice tone="bad">{mandates.error}</Notice>;
 
-  const m = mandate.data;
+  const active = mandates.data ?? [];
+  const allCategories = categories.data ?? [];
+  const selected = category ?? active[0]?.category ?? allCategories[0] ?? null;
+  const m = mandateFor(active, selected);
+
+  const tabs = (
+    <CategoryTabs categories={allCategories} mandates={active} selected={selected} onSelect={setCategory} />
+  );
+
+  if (!m) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+        {tabs}
+        <IssueMandate category={selected} onIssued={refreshAll} />
+      </div>
+    );
+  }
   const events = audit.data ?? [];
-  const queueEmpty = (restock.data ?? []).length === 0;
+  const queueForCategory = (restock.data ?? []).filter((entry) => entry.catalog_category === m.category);
+  const queueEmpty = queueForCategory.length === 0;
 
   return (
     <div style={{ display: 'flex', gap: 28, alignItems: 'flex-start' }}>
       <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', gap: 22, minWidth: 0 }}>
+        {tabs}
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <span className="label">Intent Mandate</span>
@@ -107,7 +123,7 @@ export function MandateOverview() {
             <Button variant="ghost" onClick={() => revoke(m.id)}>
               REVOKE
             </Button>
-            <Button variant="primary" onClick={runAgent} disabled={running || queueEmpty}>
+            <Button variant="primary" onClick={() => runAgent(m.category)} disabled={running || queueEmpty}>
               {Icon.play('var(--bg)')}
               {running ? 'RUNNING…' : 'RUN AGENT'}
             </Button>
@@ -123,6 +139,7 @@ export function MandateOverview() {
               </p>
               <MandateForm
                 initial={{
+                  category: m.category,
                   instruction: m.standing_instruction ?? DEFAULT_INSTRUCTION,
                   perOrder: String(m.per_order_cap),
                   monthly: String(m.monthly_cap),
@@ -144,8 +161,8 @@ export function MandateOverview() {
 
         {queueEmpty && (
           <Notice tone="ok">
-            The restock queue is empty, so there is nothing for the agent to buy. Mark items as low on the Catalog
-            screen first.
+            Nothing is queued under {titleCase(m.category)}, so the agent has nothing to buy here. Mark items as low
+            on the Catalog screen first.
           </Notice>
         )}
 
@@ -247,12 +264,12 @@ export function MandateOverview() {
       <div style={{ width: 340, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 22 }}>
         <Panel title="RESTOCK QUEUE">
           <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {(restock.data ?? []).length === 0 ? (
+            {queueForCategory.length === 0 ? (
               <span style={{ fontSize: 13, color: 'var(--ink-faint)' }}>
                 Nothing queued. Mark items as low in the catalog.
               </span>
             ) : (
-              (restock.data ?? []).map((entry) => (
+              queueForCategory.map((entry) => (
                 <div key={entry.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: 'var(--ink-2)' }}>
                   <span style={{ width: 5, height: 5, background: 'var(--amber)', flexShrink: 0 }} />
                   {entry.catalog_name ?? `#${entry.catalog_id}`}
@@ -403,6 +420,7 @@ const DEFAULT_INSTRUCTION =
   'Keep milk, bread and eggs stocked. Buy the smallest sensible quantity of each and stay well inside the budget.';
 
 interface Limits {
+  category: string;
   instruction: string;
   perOrder: string;
   monthly: string;
@@ -413,22 +431,22 @@ const PRESETS: { label: string; hint: string; limits: Limits }[] = [
   {
     label: 'Room to spend',
     hint: 'cart clears every check — approved and paid outright',
-    limits: { instruction: DEFAULT_INSTRUCTION, perOrder: '500', monthly: '3000', threshold: '90' },
+    limits: { category: '', instruction: DEFAULT_INSTRUCTION, perOrder: '500', monthly: '3000', threshold: '90' },
   },
   {
     label: 'Near the line',
     hint: 'cart crosses the escalation threshold — waits for you in Approvals',
-    limits: { instruction: DEFAULT_INSTRUCTION, perOrder: '500', monthly: '300', threshold: '70' },
+    limits: { category: '', instruction: DEFAULT_INSTRUCTION, perOrder: '500', monthly: '300', threshold: '70' },
   },
   {
     label: 'Almost nothing left',
     hint: 'agent buys less to stay inside the cap, or nothing at all',
-    limits: { instruction: DEFAULT_INSTRUCTION, perOrder: '500', monthly: '80', threshold: '90' },
+    limits: { category: '', instruction: DEFAULT_INSTRUCTION, perOrder: '500', monthly: '80', threshold: '90' },
   },
   {
     label: 'One item at a time',
     hint: 'per-order cap forces small carts across several runs',
-    limits: { instruction: DEFAULT_INSTRUCTION, perOrder: '70', monthly: '3000', threshold: '90' },
+    limits: { category: '', instruction: DEFAULT_INSTRUCTION, perOrder: '70', monthly: '3000', threshold: '90' },
   },
 ];
 
@@ -439,7 +457,7 @@ async function issueMandate(token: string, limits: Limits) {
     '/intent-mandates',
     token,
     post({
-      category: 'groceries',
+      category: limits.category,
       standing_instruction: limits.instruction,
       per_order_cap: Number(limits.perOrder),
       monthly_cap: Number(limits.monthly),
@@ -494,7 +512,7 @@ function MandateForm({
               <button
                 key={preset.label}
                 type="button"
-                onClick={() => setLimits((prev) => ({ ...preset.limits, instruction: prev.instruction }))}
+                onClick={() => setLimits((prev) => ({ ...preset.limits, category: prev.category, instruction: prev.instruction }))}
                 style={{
                   textAlign: 'left',
                   padding: '11px 13px',
@@ -578,22 +596,24 @@ function MandateForm({
   );
 }
 
-function IssueMandate({ onIssued }: { onIssued: () => void }) {
+function IssueMandate({ category, onIssued }: { category: string | null; onIssued: () => void }) {
   const session = useSession();
 
   return (
     <div style={{ maxWidth: 620, display: 'flex', flexDirection: 'column', gap: 22 }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <span className="label">No active mandate</span>
-        <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700 }}>Authorise the agent</h1>
+        <span className="label">No mandate for {category ? titleCase(category) : 'this category'}</span>
+        <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700 }}>
+          Authorise the agent for {category ? titleCase(category) : 'a category'}
+        </h1>
         <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-dim)', lineHeight: 1.6 }}>
-          Set the limits the agent must buy within. It cannot spend outside these, and every attempt is recorded.
+          Each category gets its own brief and its own limits. Spend in one never draws down another.
         </p>
       </div>
 
       <Panel style={{ padding: 26 }}>
         <MandateForm
-          initial={PRESETS[0].limits}
+          initial={{ ...PRESETS[0].limits, category: category ?? 'groceries' }}
           submitLabel="ISSUE MANDATE"
           onSubmit={async (limits) => {
             await issueMandate(session.token, limits);

@@ -33,14 +33,9 @@ class CheckoutClient:
             )
         return response
 
-    async def active_mandate(self, user_id: int) -> Mandate | None:
-        try:
-            response = await self._request("GET", "/intent-mandates/active", user_id)
-        except CheckoutError as exc:
-            if exc.status_code == 404:
-                return None
-            raise
-        return Mandate.model_validate(response.json())
+    async def active_mandates(self, user_id: int) -> list[Mandate]:
+        response = await self._request("GET", "/intent-mandates/active", user_id)
+        return [Mandate.model_validate(row) for row in response.json()]
 
     async def catalog(self, user_id: int, category: str) -> list[CatalogItem]:
         response = await self._request("GET", "/catalog", user_id, params={"category": category})
@@ -50,8 +45,10 @@ class CheckoutClient:
         response = await self._request("GET", "/restock-list", user_id)
         return [RestockEntry.model_validate(row) for row in response.json()]
 
-    async def consume_restock(self, user_id: int) -> list[int]:
-        response = await self._request("POST", "/restock-list/consume", user_id)
+    async def consume_restock(self, user_id: int, catalog_ids: list[int] | None = None) -> list[int]:
+        response = await self._request(
+            "POST", "/restock-list/consume", user_id, json={"catalog_ids": catalog_ids or []}
+        )
         return response.json()
 
     async def propose_cart(self, user_id: int, mandate_id: int, lines: list[CartLine]) -> CartDecision:

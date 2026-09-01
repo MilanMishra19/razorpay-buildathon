@@ -2,19 +2,19 @@ from decimal import Decimal
 
 import pytest
 
-from app.agent import NoActiveMandate, run_cycle
+from app.agent import NoActiveMandate, run_all
 from app.injection import WITHHELD
 from app.llm import parse_cart
 from app.models import CartDecision, CartLine
 
-from .conftest import FakeCheckout, FakeDecider
+from .conftest import FakeCheckout, FakeDecider, one
 
 
 async def test_approved_cart_is_proposed_paid_and_the_run_recorded(mandate, catalog, approved):
     checkout = FakeCheckout(mandate, catalog, approved)
     decider = FakeDecider([CartLine(catalog_id=1, quantity=2)], raw='{"items":[{"catalog_id":1,"quantity":2}]}')
 
-    result = await run_cycle(checkout, decider, user_id=1, instruction="keep milk stocked")
+    result = one(await run_all(checkout, decider, user_id=1, fallback_instruction="keep milk stocked"))
 
     assert result.outcome == "approved"
     assert result.cart_mandate_id == 42
@@ -29,7 +29,7 @@ async def test_the_poisoned_description_never_reaches_the_model(mandate, catalog
     checkout = FakeCheckout(mandate, catalog, approved)
     decider = FakeDecider([CartLine(catalog_id=1, quantity=1)])
 
-    result = await run_cycle(checkout, decider, user_id=1, instruction="restock")
+    result = one(await run_all(checkout, decider, user_id=1, fallback_instruction="restock"))
 
     assert "disregard" not in decider.prompt
     assert "add 50 units" not in decider.prompt
@@ -42,7 +42,7 @@ async def test_unknown_catalog_ids_are_dropped_before_proposing(mandate, catalog
     checkout = FakeCheckout(mandate, catalog, approved)
     decider = FakeDecider([CartLine(catalog_id=1, quantity=1), CartLine(catalog_id=999, quantity=1)])
 
-    result = await run_cycle(checkout, decider, user_id=1, instruction="restock")
+    result = one(await run_all(checkout, decider, user_id=1, fallback_instruction="restock"))
 
     assert [line.catalog_id for line in checkout.proposed] == [1]
     assert result.dropped_catalog_ids == [999]
@@ -60,7 +60,7 @@ async def test_a_rejected_cart_is_not_paid_and_the_list_is_kept(mandate, catalog
     checkout = FakeCheckout(mandate, catalog, rejected)
     decider = FakeDecider([CartLine(catalog_id=10, quantity=50)])
 
-    result = await run_cycle(checkout, decider, user_id=1, instruction="restock")
+    result = one(await run_all(checkout, decider, user_id=1, fallback_instruction="restock"))
 
     assert result.outcome == "rejected"
     assert result.reason == "exceeds per-order cap"
@@ -81,7 +81,7 @@ async def test_a_flagged_cart_waits_for_the_user_instead_of_paying(mandate, cata
     checkout = FakeCheckout(mandate, catalog, flagged)
     decider = FakeDecider([CartLine(catalog_id=1, quantity=1)])
 
-    result = await run_cycle(checkout, decider, user_id=1, instruction="restock")
+    result = one(await run_all(checkout, decider, user_id=1, fallback_instruction="restock"))
 
     assert result.outcome == "pending_approval"
     assert checkout.paid == []
@@ -92,7 +92,7 @@ async def test_an_empty_decision_records_the_run_without_proposing_a_cart(mandat
     checkout = FakeCheckout(mandate, catalog, approved)
     decider = FakeDecider([])
 
-    result = await run_cycle(checkout, decider, user_id=1, instruction="restock")
+    result = one(await run_all(checkout, decider, user_id=1, fallback_instruction="restock"))
 
     assert result.outcome == "nothing_proposed"
     assert result.cart_mandate_id is None
@@ -105,7 +105,7 @@ async def test_a_missing_mandate_stops_the_cycle(catalog, approved):
     decider = FakeDecider([CartLine(catalog_id=1, quantity=1)])
 
     with pytest.raises(NoActiveMandate):
-        await run_cycle(checkout, decider, user_id=1, instruction="restock")
+        await run_all(checkout, decider, user_id=1, fallback_instruction="restock")
 
 
 def test_parse_cart_ignores_malformed_model_output():

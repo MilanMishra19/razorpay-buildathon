@@ -1,19 +1,11 @@
 import { useState } from 'react';
-import { api, ApiError, post } from '../api/client';
+import { api, post } from '../api/client';
 import { useResource } from '../api/useResource';
 import { useSession } from '../auth/AuthContext';
 import type { CartMandate, CatalogItem, Mandate } from '../api/types';
+import { loadActiveMandates, mandateById, titleCase } from '../api/mandates';
 import { BudgetMeter } from '../components/BudgetMeter';
 import { Button, Empty, Icon, Notice, Panel, clockTime, money, statusColor } from '../components/ui';
-
-async function loadActive(token: string): Promise<Mandate | null> {
-  try {
-    return await api.checkout<Mandate>('/intent-mandates/active', token);
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 404) return null;
-    throw error;
-  }
-}
 
 export function Approvals() {
   const session = useSession();
@@ -23,8 +15,8 @@ export function Approvals() {
     4000,
   );
   const history = useResource<CartMandate[]>((token) => api.checkout('/cart-mandates', token), [], 8000);
-  const mandate = useResource<Mandate | null>(loadActive, [], 8000);
-  const catalog = useResource<CatalogItem[]>((token) => api.checkout('/catalog?category=groceries', token), []);
+  const mandates = useResource<Mandate[]>(loadActiveMandates, [], 8000);
+  const catalog = useResource<CatalogItem[]>((token) => api.checkout('/catalog', token), []);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<number | null>(null);
 
@@ -40,7 +32,7 @@ export function Approvals() {
       }
       pending.reload();
       history.reload();
-      mandate.reload();
+      mandates.reload();
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -70,7 +62,9 @@ export function Approvals() {
           <Empty>Nothing is waiting on you. The agent has not hit the escalation threshold.</Empty>
         </Panel>
       ) : (
-        queue.map((cart) => (
+        queue.map((cart) => {
+          const covering = mandateById(mandates.data ?? [], cart.intent_mandate_id);
+          return (
           <Panel key={cart.id} tone="warn" style={{ padding: '24px 28px' }}>
             <div style={{ display: 'flex', gap: 36, flexWrap: 'wrap' }}>
               <div style={{ flexGrow: 1, minWidth: 380, display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -80,7 +74,7 @@ export function Approvals() {
                     {cart.rejection_reason ?? 'Requires approval'}
                   </span>
                   <span className="mono" style={{ fontSize: 10, color: 'var(--ink-faint)', letterSpacing: '0.1em' }}>
-                    CART #{cart.id}
+                    CART #{cart.id}{covering ? ` · ${titleCase(covering.category)}` : ''}
                   </span>
                 </div>
 
@@ -134,27 +128,27 @@ export function Approvals() {
                 </div>
               </div>
 
-              {mandate.data && (
+              {covering && (
                 <div style={{ width: 380, borderLeft: '1px solid var(--line)', paddingLeft: 32, display: 'flex', flexDirection: 'column', gap: 16 }}>
                   <span className="label">If you approve</span>
                   <BudgetMeter
-                    spent={mandate.data.spent_this_period}
-                    cap={mandate.data.monthly_cap}
-                    escalationPct={mandate.data.escalation_threshold_pct}
+                    spent={covering.spent_this_period}
+                    cap={covering.monthly_cap}
+                    escalationPct={covering.escalation_threshold_pct}
                     pending={cart.total_amount}
                     height={44}
                   />
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 6 }}>
-                    <Row label="already paid" value={money(mandate.data.spent_this_period)} />
+                    <Row label="already paid" value={money(covering.spent_this_period)} />
                     <Row label="this cart" value={`+ ${money(cart.total_amount)}`} tone="var(--amber)" />
                     <div style={{ height: 1, background: 'var(--line)' }} />
                     <Row
-                      label={`of ${money(mandate.data.monthly_cap)} cap`}
-                      value={money(mandate.data.spent_this_period + cart.total_amount)}
+                      label={`of ${money(covering.monthly_cap)} cap`}
+                      value={money(covering.spent_this_period + cart.total_amount)}
                     />
                     <Row
                       label="left after"
-                      value={money(mandate.data.remaining_monthly_budget - cart.total_amount)}
+                      value={money(covering.remaining_monthly_budget - cart.total_amount)}
                       tone="var(--bad)"
                     />
                   </div>
@@ -162,7 +156,8 @@ export function Approvals() {
               )}
             </div>
           </Panel>
-        ))
+          );
+        })
       )}
 
       {resolved.length > 0 && (

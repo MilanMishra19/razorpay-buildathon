@@ -38,15 +38,15 @@ public class RestockService {
                     return restock.save(fresh);
                 });
 
-        return toResponse(entry, item.getName());
+        return toResponse(entry, item);
     }
 
     @Transactional(readOnly = true)
     public List<RestockEntryResponse> listOpen(Long userId) {
         List<RestockList> entries = restock.findByUserIdAndConsumedAtIsNullOrderByIdAsc(userId);
-        Map<Long, String> names = catalogNames(entries);
+        Map<Long, Catalog> items = catalogItems(entries);
         return entries.stream()
-                .map(entry -> toResponse(entry, names.get(entry.getCatalogId())))
+                .map(entry -> toResponse(entry, items.get(entry.getCatalogId())))
                 .toList();
     }
 
@@ -58,20 +58,27 @@ public class RestockService {
     }
 
     @Transactional
-    public List<Long> consumeOpen(Long userId) {
-        List<RestockList> entries = restock.findByUserIdAndConsumedAtIsNullOrderByIdAsc(userId);
+    public List<Long> consumeOpen(Long userId, List<Long> catalogIds) {
+        List<RestockList> entries = restock.findByUserIdAndConsumedAtIsNullOrderByIdAsc(userId).stream()
+                .filter(entry -> catalogIds == null || catalogIds.isEmpty() || catalogIds.contains(entry.getCatalogId()))
+                .toList();
         Instant now = Instant.now();
         entries.forEach(entry -> entry.setConsumedAt(now));
         return entries.stream().map(RestockList::getCatalogId).toList();
     }
 
-    private Map<Long, String> catalogNames(List<RestockList> entries) {
+    private Map<Long, Catalog> catalogItems(List<RestockList> entries) {
         List<Long> ids = entries.stream().map(RestockList::getCatalogId).toList();
         return catalog.findAllById(ids).stream()
-                .collect(Collectors.toMap(Catalog::getId, Catalog::getName, (a, b) -> a));
+                .collect(Collectors.toMap(Catalog::getId, item -> item, (a, b) -> a));
     }
 
-    private RestockEntryResponse toResponse(RestockList entry, String catalogName) {
-        return new RestockEntryResponse(entry.getId(), entry.getCatalogId(), catalogName, entry.getAddedAt());
+    private RestockEntryResponse toResponse(RestockList entry, Catalog item) {
+        return new RestockEntryResponse(
+                entry.getId(),
+                entry.getCatalogId(),
+                item == null ? null : item.getName(),
+                item == null ? null : item.getCategory(),
+                entry.getAddedAt());
     }
 }

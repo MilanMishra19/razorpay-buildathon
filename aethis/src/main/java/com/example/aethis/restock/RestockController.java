@@ -45,7 +45,11 @@ public class RestockController {
     }
 
     @PostMapping("/consume")
-    public List<Long> consume(@AuthenticationPrincipal Long userId) {
-        return restockService.consumeOpen(userId);
+    public List<Long> consume(@AuthenticationPrincipal Long userId,
+                              @RequestBody(required = false) ConsumeRequest request) {
+        return restockService.consumeOpen(userId, request == null ? null : request.catalogIds());
+    }
+
+    public record ConsumeRequest(List<Long> catalogIds) {
     }
 }

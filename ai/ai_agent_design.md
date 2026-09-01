@@ -10,8 +10,8 @@ Core principle: the LLM is used for exactly one thing — interpreting a vague, 
 Manual, not scheduled/cron. A "mark as low" action per catalog item (surfaced on the Catalog View screen) appends to the user's "needs restocking" list — persisted via `POST /restock-list` on the Spring Boot API (table `restock_list`), not held in memory. A shopping cycle is kicked off explicitly by `POST /agent/run` on this service (a "Run agent now" button on the frontend); that list is its input. There is no background polling or timer deciding when the agent runs.
 
 ### `POST /agent/run`
-**Request:** `user_id` (the frontend passes the logged-in user; in a hardened build this would come from a forwarded token)
-**Behavior:** runs exactly one shopping cycle — assemble → one LLM call → post-process → `POST /cart-mandates` → `POST /agent-runs`. Returns the `agent_run` id and the cart mandate outcome.
+**Request:** `user_id`, optional `category` (the frontend passes the logged-in user; in a hardened build this would come from a forwarded token)
+**Behavior:** runs **one cycle per active mandate that has queued items** — so a user with groceries, household and personal care mandates gets three independent cycles, each against its own caps, brief and catalog slice. A `category` narrows it to one. Categories with nothing queued are reported in `skipped` rather than burning a model call. Each cycle is — assemble → one LLM call → post-process → `POST /cart-mandates` → `POST /agent-runs`. Returns the `agent_run` id and the cart mandate outcome.
 
 ---
 

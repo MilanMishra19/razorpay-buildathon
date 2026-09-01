@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 class RunRequest(BaseModel):
     user_id: int
+    category: str | None = None
     instruction: str | None = None
 
 
@@ -26,6 +27,7 @@ class RestockEntry(BaseModel):
     id: int
     catalog_id: int
     catalog_name: str | None = None
+    catalog_category: str | None = None
 
 
 class Mandate(BaseModel):
@@ -50,6 +52,7 @@ class CartDecision(BaseModel):
 
 
 class RunResult(BaseModel):
+    category: str
     agent_run_id: int | None = None
     cart_mandate_id: int | None = None
     outcome: str
@@ -60,3 +63,8 @@ class RunResult(BaseModel):
     payment_status: str | None = None
     model_unavailable: str | None = None
     instruction_used: str | None = None
+
+
+class RunReport(BaseModel):
+    runs: list[RunResult] = []
+    skipped: dict[str, str] = {}

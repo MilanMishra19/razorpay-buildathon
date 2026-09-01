@@ -75,6 +75,7 @@ export interface RestockEntry {
   id: number;
   catalog_id: number;
   catalog_name: string | null;
+  catalog_category: string | null;
   added_at: string;
 }
 
@@ -100,6 +101,7 @@ export interface PaymentMandate {
 }
 
 export interface AgentRunResult {
+  category: string;
   agent_run_id: number | null;
   cart_mandate_id: number | null;
   outcome: string;
@@ -110,4 +112,9 @@ export interface AgentRunResult {
   payment_status: string | null;
   model_unavailable: string | null;
   instruction_used: string | null;
+}
+
+export interface AgentRunReport {
+  runs: AgentRunResult[];
+  skipped: Record<string, string>;
 }

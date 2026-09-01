@@ -2,7 +2,7 @@
 
 Service: **Agent Checkout API**
 Track: AI Growth & Agentic Commerce
-Scope: single category (groceries), one active intent mandate per user
+Scope: any number of categories, one active intent mandate per category
 
 Core principle: this service is where **all guardrail enforcement happens**. The FastAPI agent can *propose* actions; only this service can *approve* them. No request from the agent should be able to reach `payment_mandates` without passing through an approved cart mandate first.
 
@@ -37,10 +37,10 @@ Issue a new mandate (user sets up or renews their monthly budget + rules). Creat
 
 **Response:** the created mandate, including `id`, `status: active`, `mandate_hash`
 
-### `GET /intent-mandates/active`
-Get the currently active mandate for the authenticated user (or, for the agent, the user named in `X-On-Behalf-Of`). Called before proposing anything.
+### `GET /intent-mandates/active?category={category}`
+Get the caller's active mandates — **a list**, one per category. Optional `category` narrows it to that one. Called before proposing anything.
 
-**Response:** the active mandate, or 404 if none is currently active
+**Response:** array of mandates (empty if none active)
 
 ### `POST /intent-mandates/{id}/revoke`
 Manually revoke/expire a mandate before its natural expiry. Writes an `audit_log` entry (`event: expired` or `revoked`).
@@ -52,7 +52,10 @@ Manually revoke/expire a mandate before its natural expiry. Writes an `audit_log
 ## Catalog
 
 ### `GET /catalog?category={category}`
-Browse/list catalog items, filterable by category. This is what the FastAPI agent calls to see what's available.
+Browse/list catalog items. Omit `category` for everything. This is what the FastAPI agent calls to see what's available.
+
+### `GET /catalog/categories`
+The distinct categories present in the catalog — the frontend builds its category tabs from this rather than hardcoding a list.
 
 **Response:** list of `{ id, name, category, price, stock_status, description }`
 
