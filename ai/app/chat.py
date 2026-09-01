@@ -9,6 +9,7 @@ disagree with the ledger.
 """
 
 import json
+import re
 
 from .llm import DeciderUnavailable, MissingApiKey
 from .models import ChatReply, MandateProposal
@@ -74,27 +75,103 @@ def extract_intent(decider, message: str) -> dict:
     return payload if isinstance(payload, dict) else {"intent": "unknown"}
 
 
-def propose_mandate(intent: dict, categories: list[str], fallback_instruction: str) -> MandateProposal:
-    category = (intent.get("category") or "").strip().lower()
-    if category not in categories:
-        category = next((c for c in categories if category and category in c), categories[0])
+DEFAULT_PER_ORDER = 500
+DEFAULT_MONTHLY = 3000
+DEFAULT_THRESHOLD = 90
 
-    return MandateProposal(
+
+def match_category(wanted: str | None, categories: list[str]) -> str | None:
+    """
+    The user says "household essentials"; the catalog says "household". Close that gap without
+    guessing — and return None rather than reaching for a default, because quietly proposing a
+    mandate against a category the user never named is how an agent ends up spending in the wrong
+    aisle. The caller asks instead.
+    """
+    if not wanted or not categories:
+        return None
+
+    wanted = wanted.strip().lower()
+    if wanted in categories:
+        return wanted
+
+    for category in categories:
+        if category in wanted or wanted in category:
+            return category
+
+    for category in categories:
+        if any(shares_root(word, other) for word in words(wanted) for other in words(category)):
+            return category
+
+    return None
+
+
+def words(text: str) -> list[str]:
+    return re.findall(r"[a-z]+", text.lower())
+
+
+def shares_root(one: str, other: str) -> bool:
+    """Enough to tie grocery to groceries, not enough to tie care to carton."""
+    if min(len(one), len(other)) < 5:
+        return False
+    common = 0
+    for left, right in zip(one, other):
+        if left != right:
+            break
+        common += 1
+    return common >= 5
+
+
+def propose_mandate(
+    intent: dict, category: str, fallback_instruction: str
+) -> tuple[MandateProposal, list[str]]:
+    """
+    Returns the draft and the list of limits the user did not actually state. A default the user is
+    not told about is a number they did not choose, on a document about their money.
+    """
+    assumed: list[str] = []
+
+    per_order = intent.get("per_order_cap")
+    if per_order is None:
+        per_order, _ = DEFAULT_PER_ORDER, assumed.append("per-order cap")
+
+    monthly = intent.get("monthly_cap")
+    if monthly is None:
+        monthly, _ = DEFAULT_MONTHLY, assumed.append("monthly cap")
+
+    threshold = intent.get("escalation_threshold_pct")
+    if threshold is None:
+        threshold, _ = DEFAULT_THRESHOLD, assumed.append("check-in threshold")
+
+    proposal = MandateProposal(
         category=category,
         standing_instruction=intent.get("instruction") or fallback_instruction,
-        per_order_cap=intent.get("per_order_cap") or 500,
-        monthly_cap=intent.get("monthly_cap") or 3000,
-        escalation_threshold_pct=intent.get("escalation_threshold_pct") or 90,
+        per_order_cap=per_order,
+        monthly_cap=monthly,
+        escalation_threshold_pct=threshold,
+    )
+    return proposal, assumed
+
+
+def ask_which_category(wanted: str | None, categories: list[str]) -> str:
+    named = f'I could not match "{wanted}" to anything this merchant sells. ' if wanted else ""
+    listed = ", ".join(categories[:-1]) + f" or {categories[-1]}" if len(categories) > 1 else categories[0]
+    return (
+        f"{named}I can only hold a mandate against a category that exists, so tell me which one you "
+        f"mean and I will draft it: {listed}."
     )
 
 
-def describe_proposal(proposal: MandateProposal) -> str:
-    return (
+def describe_proposal(proposal: MandateProposal, assumed: list[str] | None = None) -> str:
+    text = (
         f"Here is the mandate I would issue for {proposal.category}: up to "
         f"₹{proposal.per_order_cap:,.0f} per order, ₹{proposal.monthly_cap:,.0f} per month, and I "
         f"check with you once a cart would take you past {proposal.escalation_threshold_pct:.0f}% of "
         f"the monthly cap. Confirm and I will issue it — I cannot give myself spending authority."
     )
+    if assumed:
+        spelled = ", ".join(assumed[:-1]) + f" and {assumed[-1]}" if len(assumed) > 1 else assumed[0]
+        text += f" You did not name a {spelled}, so that part is my default — change it before issuing."
+    return text
 
 
 def describe_spend(mandates: list) -> str:
@@ -173,11 +250,13 @@ def unavailable(error: Exception) -> ChatReply:
 __all__ = [
     "DeciderUnavailable",
     "MissingApiKey",
+    "ask_which_category",
     "cannot_help",
     "describe_policy",
     "describe_proposal",
     "describe_spend",
     "extract_intent",
+    "match_category",
     "propose_mandate",
     "sentence",
     "unavailable",

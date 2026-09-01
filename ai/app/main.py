@@ -94,9 +94,17 @@ async def talk(request: ChatRequest) -> ChatReply:
     try:
         if kind == "create_mandate":
             categories = await checkout.categories(request.user_id)
-            proposal = conversation.propose_mandate(intent, categories, settings.default_instruction)
+            category = conversation.match_category(intent.get("category"), categories)
+            if category is None:
+                return ChatReply(
+                    reply=conversation.ask_which_category(intent.get("category"), categories),
+                    intent="needs_category",
+                )
+            proposal, assumed = conversation.propose_mandate(
+                intent, category, settings.default_instruction
+            )
             return ChatReply(
-                reply=conversation.describe_proposal(proposal),
+                reply=conversation.describe_proposal(proposal, assumed),
                 intent=kind,
                 proposal=proposal,
             )

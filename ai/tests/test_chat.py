@@ -2,10 +2,12 @@ import json
 from decimal import Decimal
 
 from app.chat import (
+    ask_which_category,
     describe_policy,
     describe_proposal,
     describe_spend,
     extract_intent,
+    match_category,
     propose_mandate,
 )
 from app.models import Mandate
@@ -51,36 +53,71 @@ class TestIntentExtraction:
         assert extract_intent(ScriptedDecider("[1, 2, 3]"), "hi")["intent"] == "unknown"
 
 
+class TestCategoryMatching:
+    CATEGORIES = ["groceries", "household", "personal care"]
+
+    def test_the_words_people_actually_use_reach_the_right_shelf(self):
+        assert match_category("household essentials", self.CATEGORIES) == "household"
+        assert match_category("personal care items", self.CATEGORIES) == "personal care"
+        assert match_category("grocery shopping", self.CATEGORIES) == "groceries"
+
+    def test_an_exact_name_is_taken_as_given(self):
+        assert match_category("household", self.CATEGORIES) == "household"
+
+    def test_a_category_the_merchant_does_not_sell_is_not_forced_into_one(self):
+        assert match_category("pet food", self.CATEGORIES) is None
+        assert match_category("kitchen stuff", self.CATEGORIES) is None
+
+    def test_nothing_said_matches_nothing(self):
+        assert match_category(None, self.CATEGORIES) is None
+        assert match_category("", self.CATEGORIES) is None
+
+    def test_a_near_miss_does_not_become_a_false_match(self):
+        assert match_category("carton of milk", self.CATEGORIES) is None
+
+    def test_the_question_names_the_real_categories(self):
+        text = ask_which_category("pet food", self.CATEGORIES)
+
+        assert "pet food" in text
+        assert "groceries" in text and "household" in text and "personal care" in text
+
+
 class TestMandateProposal:
     def test_it_carries_the_limits_the_user_actually_stated(self):
         intent = {
             "intent": "create_mandate",
-            "category": "household",
             "instruction": "keep the cleaning stuff stocked",
             "per_order_cap": 600,
             "monthly_cap": 4000,
             "escalation_threshold_pct": 80,
         }
 
-        proposal = propose_mandate(intent, ["groceries", "household"], "fallback")
+        proposal, assumed = propose_mandate(intent, "household", "fallback")
 
         assert proposal.category == "household"
         assert proposal.per_order_cap == 600
         assert proposal.monthly_cap == 4000
         assert proposal.escalation_threshold_pct == 80
-        assert proposal.standing_instruction == "keep the cleaning stuff stocked"
+        assert assumed == []
 
-    def test_an_unknown_category_falls_back_to_a_real_one(self):
-        intent = {"intent": "create_mandate", "category": "spaceships"}
+    def test_limits_the_user_never_gave_are_reported_as_assumptions(self):
+        proposal, assumed = propose_mandate({"per_order_cap": 600}, "household", "fallback")
 
-        proposal = propose_mandate(intent, ["groceries", "household"], "fallback")
+        assert proposal.per_order_cap == 600
+        assert assumed == ["monthly cap", "check-in threshold"]
 
-        assert proposal.category in ("groceries", "household")
+    def test_the_reply_admits_which_numbers_it_chose_itself(self):
+        proposal, assumed = propose_mandate({"per_order_cap": 600}, "household", "fallback")
+
+        text = describe_proposal(proposal, assumed)
+
+        assert "my default" in text
+        assert "monthly cap" in text
 
     def test_the_proposal_says_plainly_that_it_is_not_yet_authority(self):
-        proposal = propose_mandate({"category": "groceries"}, ["groceries"], "fallback")
+        proposal, assumed = propose_mandate({}, "groceries", "fallback")
 
-        text = describe_proposal(proposal)
+        text = describe_proposal(proposal, assumed)
 
         assert "Confirm" in text
         assert "cannot give myself spending authority" in text
