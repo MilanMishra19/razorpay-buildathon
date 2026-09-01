@@ -201,7 +201,7 @@ export function MandateOverview() {
         />
 
         {runError && <Notice tone="bad">Agent: {runError}</Notice>}
-        {runResult && <RunSummary result={runResult} />}
+        {runResult && <RunSummary result={runResult} catalog={catalog.data ?? []} />}
 
         <Panel style={{ padding: '26px 28px 22px', display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
@@ -402,9 +402,13 @@ function Stat({ label, value, note, tone }: { label: string; value: string; note
   );
 }
 
-function RunSummary({ result }: { result: AgentRunResult }) {
+function RunSummary({ result, catalog }: { result: AgentRunResult; catalog: CatalogItem[] }) {
   const tone = result.outcome === 'approved' ? 'ok' : result.outcome === 'rejected' ? 'bad' : 'warn';
   const color = tone === 'ok' ? 'var(--ok)' : tone === 'bad' ? 'var(--bad)' : 'var(--amber)';
+  const names = new Map(catalog.map((item) => [item.id, item.name]));
+  const unfounded = result.rejected_substitutions ?? [];
+  const withheld = result.withheld_rationales ?? [];
+  const swaps = result.proposed_cart.filter((line) => line.substitutes_for != null);
   return (
     <Panel tone={tone} style={{ padding: '16px 20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' }}>
@@ -417,17 +421,50 @@ function RunSummary({ result }: { result: AgentRunResult }) {
           {result.payment_status ? ` · ${result.payment_status}` : ''}
         </span>
       </div>
+      {swaps.length > 0 && (
+        <RunNote>
+          {swaps.map((line) => (
+            <div key={line.catalog_id}>
+              Swapped <strong style={{ color: 'var(--ink-2)', fontWeight: 600 }}>{names.get(line.catalog_id) ?? `#${line.catalog_id}`}</strong>{' '}
+              in for {names.get(line.substitutes_for!) ?? `#${line.substitutes_for}`}
+              {line.rationale ? ` — ${line.rationale}` : ''}
+            </div>
+          ))}
+        </RunNote>
+      )}
+      {unfounded.length > 0 && (
+        <RunNote>
+          The model claimed {unfounded.length === 1 ? 'a substitution' : `${unfounded.length} substitutions`} the catalog
+          does not support ({unfounded.map((id) => names.get(id) ?? `#${id}`).join(', ')} {unfounded.length === 1 ? 'is' : 'are'}{' '}
+          in stock or was never queued). The claim was dropped and the item bought on its own merits.
+        </RunNote>
+      )}
+      {withheld.length > 0 && (
+        <RunNote>
+          The reason written for {withheld.map((id) => names.get(id) ?? `#${id}`).join(', ')} read as an instruction
+          rather than an explanation, so it was withheld from the approval screen. The swap itself stands — it was
+          checked against the catalog, not taken on the model's word.
+        </RunNote>
+      )}
       {result.model_unavailable && (
-        <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--line)', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-          {Icon.warn('var(--amber)', 15)}
-          <span style={{ fontSize: 12, lineHeight: 1.55, color: 'var(--ink-dim)' }}>
-            The model was unavailable, so this cart was chosen deterministically instead. Guardrails, audit chain and
-            payment all still ran for real.{' '}
-            <span className="mono" style={{ color: 'var(--ink-ghost)' }}>{result.model_unavailable}</span>
-          </span>
-        </div>
+        <RunNote>
+          The model was unavailable, so this cart was chosen deterministically instead. Guardrails, audit chain and
+          payment all still ran for real.{' '}
+          <span className="mono" style={{ color: 'var(--ink-ghost)' }}>{result.model_unavailable}</span>
+        </RunNote>
       )}
     </Panel>
+  );
+}
+
+function RunNote({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--line)', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+      {Icon.warn('var(--amber)', 15)}
+      <div style={{ fontSize: 12, lineHeight: 1.55, color: 'var(--ink-dim)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {children}
+      </div>
+    </div>
   );
 }
 

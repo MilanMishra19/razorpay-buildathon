@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api, post } from '../api/client';
 import { useResource } from '../api/useResource';
 import { useSession } from '../auth/AuthContext';
-import type { CartMandate, CatalogItem, Mandate } from '../api/types';
+import type { CartItem, CartMandate, CatalogItem, Mandate } from '../api/types';
 import { loadActiveMandates, mandateById, titleCase } from '../api/mandates';
 import { BudgetMeter } from '../components/BudgetMeter';
 import { Button, Empty, Icon, Notice, Panel, clockTime, money, statusColor } from '../components/ui';
@@ -21,6 +21,7 @@ export function Approvals() {
   const [busy, setBusy] = useState<number | null>(null);
 
   const names = new Map((catalog.data ?? []).map((item) => [item.id, item.name]));
+  const itemName = (id: number) => names.get(id) ?? `Item #${id}`;
 
   async function resolve(cart: CartMandate, decision: 'approve' | 'decline') {
     setBusy(cart.id);
@@ -88,20 +89,8 @@ export function Approvals() {
                     <span style={{ width: 92, textAlign: 'right' }}>UNIT</span>
                     <span style={{ width: 92, textAlign: 'right' }}>LINE</span>
                   </div>
-                  {cart.cart_items.map((item) => (
-                    <div
-                      key={item.catalog_id}
-                      style={{ display: 'flex', padding: '11px 16px', borderBottom: '1px solid var(--line-soft)', fontSize: 13, color: 'var(--ink-2)' }}
-                    >
-                      <span style={{ flexGrow: 1 }}>{names.get(item.catalog_id) ?? `Item #${item.catalog_id}`}</span>
-                      <span className="mono" style={{ width: 50, textAlign: 'right' }}>{item.quantity}</span>
-                      <span className="mono" style={{ width: 92, textAlign: 'right', color: 'var(--ink-dim)' }}>
-                        {item.unit_price.toFixed(2)}
-                      </span>
-                      <span className="mono" style={{ width: 92, textAlign: 'right' }}>
-                        {(item.unit_price * item.quantity).toFixed(2)}
-                      </span>
-                    </div>
+                  {cart.cart_items.map((item, index) => (
+                    <Line key={index} item={item} name={itemName} />
                   ))}
                   <div style={{ display: 'flex', padding: '12px 16px', background: 'var(--panel-sunken)' }}>
                     <span style={{ flexGrow: 1, fontSize: 11, fontWeight: 600, letterSpacing: '0.16em', color: 'var(--ink-dim)', paddingTop: 5 }}>
@@ -185,6 +174,44 @@ export function Approvals() {
               </div>
             ))}
           </Panel>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Line({ item, name }: { item: CartItem; name: (id: number) => string }) {
+  const swap = item.substitutes_for != null;
+  return (
+    <div
+      style={{
+        borderBottom: '1px solid var(--line-soft)',
+        borderLeft: swap ? '2px solid var(--amber)' : '2px solid transparent',
+        background: swap ? 'rgba(214, 158, 46, 0.05)' : undefined,
+      }}
+    >
+      <div style={{ display: 'flex', padding: '11px 16px 11px 14px', fontSize: 13, color: 'var(--ink-2)' }}>
+        <span style={{ flexGrow: 1 }}>{name(item.catalog_id)}</span>
+        <span className="mono" style={{ width: 50, textAlign: 'right' }}>{item.quantity}</span>
+        <span className="mono" style={{ width: 92, textAlign: 'right', color: 'var(--ink-dim)' }}>
+          {item.unit_price.toFixed(2)}
+        </span>
+        <span className="mono" style={{ width: 92, textAlign: 'right' }}>
+          {(item.unit_price * item.quantity).toFixed(2)}
+        </span>
+      </div>
+      {swap && (
+        <div style={{ display: 'flex', gap: 10, padding: '0 16px 12px 14px', alignItems: 'baseline' }}>
+          <span
+            className="mono"
+            style={{ fontSize: 9, letterSpacing: '0.16em', color: 'var(--amber)', flexShrink: 0 }}
+          >
+            SWAPPED IN
+          </span>
+          <span style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--ink-dim)' }}>
+            you asked for <strong style={{ color: 'var(--ink-2)', fontWeight: 600 }}>{name(item.substitutes_for!)}</strong>
+            {item.rationale ? ` — ${item.rationale}` : ' — it was unavailable'}
+          </span>
         </div>
       )}
     </div>

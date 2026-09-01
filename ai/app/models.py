@@ -12,6 +12,8 @@ class RunRequest(BaseModel):
 class CartLine(BaseModel):
     catalog_id: int
     quantity: int = Field(ge=1)
+    substitutes_for: int | None = None
+    rationale: str | None = None
 
 
 class CatalogItem(BaseModel):
@@ -63,6 +65,8 @@ class RunResult(BaseModel):
     payment_status: str | None = None
     model_unavailable: str | None = None
     instruction_used: str | None = None
+    rejected_substitutions: list[int] = []
+    withheld_rationales: list[int] = []
 
 
 class RunReport(BaseModel):

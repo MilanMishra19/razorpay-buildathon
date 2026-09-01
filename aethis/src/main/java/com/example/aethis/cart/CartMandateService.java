@@ -41,6 +41,7 @@ public class CartMandateService {
     private static final String REASON_PER_ORDER_CAP = "exceeds per-order cap";
     private static final String REASON_MONTHLY_CAP = "exceeds monthly cap";
     private static final String REASON_NEAR_CAP = "near monthly cap — requires approval";
+    private static final String REASON_SUBSTITUTION = "contains a substitution — requires approval";
     private static final String REASON_DECLINED = "Declined by user";
 
     private final CartMandateRepository carts;
@@ -79,15 +80,20 @@ public class CartMandateService {
 
         Map<Long, Catalog> catalogById = loadCatalog(request.cartItems());
         List<CartItem> items = request.cartItems().stream()
-                .map(line -> new CartItem(line.catalogId(), line.quantity(),
-                        catalogById.get(line.catalogId()).getPrice()))
+                .map(line -> new CartItem(
+                        line.catalogId(),
+                        line.quantity(),
+                        catalogById.get(line.catalogId()).getPrice(),
+                        validSubstitution(line.substitutesFor()),
+                        line.substitutesFor() == null ? null : line.rationale()))
                 .toList();
+        boolean substituting = items.stream().anyMatch(CartItem::isSubstitution);
         BigDecimal total = Money.normalize(items.stream()
                 .map(CartItem::lineTotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add));
 
         BigDecimal alreadyPaid = payments.totalPaidForMandate(mandate.getId());
-        Verdict verdict = evaluate(mandate, catalogById, total, alreadyPaid);
+        Verdict verdict = evaluate(mandate, catalogById, total, alreadyPaid, substituting);
 
         CartMandate cart = new CartMandate();
         cart.setUserId(userId);
@@ -148,7 +154,7 @@ public class CartMandateService {
     }
 
     private Verdict evaluate(IntentMandate mandate, Map<Long, Catalog> catalogById,
-                             BigDecimal total, BigDecimal alreadyPaid) {
+                             BigDecimal total, BigDecimal alreadyPaid, boolean substituting) {
         boolean categoryMismatch = catalogById.values().stream()
                 .anyMatch(item -> !item.getCategory().equalsIgnoreCase(mandate.getCategory()));
         if (categoryMismatch) {
@@ -177,7 +183,21 @@ public class CartMandateService {
             return Verdict.pendingApproval(REASON_NEAR_CAP);
         }
 
+        if (substituting) {
+            return Verdict.pendingApproval(REASON_SUBSTITUTION);
+        }
+
         return Verdict.approved();
+    }
+
+    private Long validSubstitution(Long substitutesFor) {
+        if (substitutesFor == null) {
+            return null;
+        }
+        if (!catalog.existsById(substitutesFor)) {
+            throw ApiException.badRequest("Unknown catalog item to substitute for: " + substitutesFor);
+        }
+        return substitutesFor;
     }
 
     private Map<Long, Catalog> loadCatalog(List<ProposeCartRequest.Line> lines) {

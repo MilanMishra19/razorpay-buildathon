@@ -1,7 +1,10 @@
 from .checkout_client import CheckoutClient
-from .injection import screen
+from .injection import is_suspicious, screen
 from .llm import Decider
-from .models import Mandate, RestockEntry, RunReport, RunResult
+from .models import CartLine, CatalogItem, Mandate, RestockEntry, RunReport, RunResult
+
+RATIONALE_LIMIT = 160
+RATIONALE_WITHHELD = "[reason withheld: failed content screening]"
 
 
 class NoActiveMandate(RuntimeError):
@@ -56,6 +59,8 @@ async def run_cycle(
     known_ids = {item.id for item in catalog}
     kept = [line for line in decision.lines if line.catalog_id in known_ids]
     dropped = [line.catalog_id for line in decision.lines if line.catalog_id not in known_ids]
+    kept, rejected_substitutions = strip_unfounded_substitutions(kept, entries, catalog)
+    kept, withheld_rationales = sanitize_rationales(kept)
 
     run_payload = {
         "intent_mandate_id": mandate.id,
@@ -78,6 +83,8 @@ async def run_cycle(
             dropped_catalog_ids=dropped,
             model_unavailable=decision.degraded,
             instruction_used=instruction,
+            rejected_substitutions=rejected_substitutions,
+            withheld_rationales=withheld_rationales,
         )
 
     cart = await client.propose_cart(user_id, mandate.id, kept)
@@ -104,4 +111,63 @@ async def run_cycle(
         payment_status=payment_status,
         model_unavailable=decision.degraded,
         instruction_used=instruction,
+        rejected_substitutions=rejected_substitutions,
+        withheld_rationales=withheld_rationales,
     )
+
+
+def strip_unfounded_substitutions(
+    lines: list[CartLine],
+    entries: list[RestockEntry],
+    catalog: list[CatalogItem],
+) -> tuple[list[CartLine], list[int]]:
+    """
+    A substitution is a claim the model makes about the world, so it is checked against the world
+    rather than believed. The replaced item has to be something the user actually queued and that
+    is actually unavailable; anything else keeps the line but loses the claim, so a cart can never
+    be routed to approval — or explained to the user — on a fabricated premise.
+    """
+    queued = {entry.catalog_id for entry in entries}
+    out_of_stock = {item.id for item in catalog if item.stock_status != "in_stock"}
+
+    checked: list[CartLine] = []
+    rejected: list[int] = []
+
+    for line in lines:
+        if line.substitutes_for is None:
+            checked.append(line)
+            continue
+
+        founded = line.substitutes_for in queued and line.substitutes_for in out_of_stock
+        if founded:
+            checked.append(line)
+        else:
+            rejected.append(line.substitutes_for)
+            checked.append(line.model_copy(update={"substitutes_for": None, "rationale": None}))
+
+    return checked, rejected
+
+
+def sanitize_rationales(lines: list[CartLine]) -> tuple[list[CartLine], list[int]]:
+    """
+    The rationale is the one field where the model writes prose a person reads before approving, so it
+    is the one place a compromised listing could address the user directly. It is held to a sentence
+    and screened the same way catalog text is: the swap survives, because that was checked against the
+    catalog, but the argument for it does not.
+    """
+    checked: list[CartLine] = []
+    withheld: list[int] = []
+
+    for line in lines:
+        if line.rationale is None:
+            checked.append(line)
+            continue
+
+        rationale = line.rationale.strip()[:RATIONALE_LIMIT]
+        if is_suspicious(rationale):
+            withheld.append(line.catalog_id)
+            rationale = RATIONALE_WITHHELD
+
+        checked.append(line.model_copy(update={"rationale": rationale}))
+
+    return checked, withheld

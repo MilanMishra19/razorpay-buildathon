@@ -64,7 +64,7 @@ Environment:
 
 ## Build phases
 
-All six are done; each links to what it actually shipped.
+Phases 0–9 are done; each says what it actually shipped.
 
 0. **Contract lock** — reconcile enums across docs, add the missing schema tables (`restock_list`, `agent_runs`, denormalized `user_id`, partial indexes), add DB driver + JWT lib + `springdoc-openapi` + validation to `pom.xml`, decide service-to-service auth, stand up docker-compose + a seed script.
 1. **Backend: auth + data layer** — entities, Flyway migrations, register/login + JWT filter, CORS, catalog endpoints + seed (including the poisoned entry), intent-mandate issue / active / revoke with the first audit write.
@@ -72,10 +72,11 @@ All six are done; each links to what it actually shipped.
 3. **Payments** — Razorpay test-mode Orders API via `RestClient`, payment gated on an approved cart, retry-in-place, idempotency keys.
 4. **AI agent** — FastAPI skeleton + checkout-API client, prompt assembly (catalog data structurally separated from instructions), one LLM call → JSON schema, heuristic injection pre-check, post-processing (catalog-id + arithmetic validation), persist `agent_runs`, manual `POST /agent/run`.
 5. **Frontend** — auth + protected routes + 401 interceptor, the 5 screens, mark-as-low + run-agent actions, the injection comparison view.
-6. **Integration + demo polish** — Dockerfiles for all three services and a `full` compose profile, `/demo` reset + tamper + restore endpoints behind `DEMO_TOOLS`, and `DEMO.md` as the scripted walkthrough. ✅
-
-~6.5 days solo; ~3 days split across backend / agent / frontend once phase 0 locks the contract. Build one vertical slice end to end before widening.
+6. **Integration + demo polish** — Dockerfiles for all three services and a `full` compose profile, `/demo` reset + tamper + restore endpoints behind `DEMO_TOOLS`, and `DEMO.md` as the scripted walkthrough.
+7. **Mandates per category** — one active mandate per `(user, category)` enforced by a partial unique index, a category tab bar across every screen, and a cycle per mandate: three mandates run three cycles against three independent budgets.
+8. **Real Razorpay checkout** — Checkout.js in the browser against a real test-mode order, HMAC-SHA256 verification of `order_id|payment_id` on the server with a constant-time compare, and a forged signature recorded as `failed` in the ledger rather than thrown away.
+9. **Substitution intelligence** — when a queued item is out of stock the agent may buy the nearest in-stock item in the same category and say why; the swap is a claim, so the agent checks it against the catalog before proposing, and the guardrail routes any surviving swap to approval even when the budget has room. ✅
 
 ## Non-goals (deliberate scope cuts)
 
-Single merchant, single category (groceries), one active mandate per user, email/password auth only (no OAuth / refresh / reset), in-memory JWT on the frontend, manual agent trigger, polling instead of websockets.
+Single merchant, email/password auth only (no OAuth / refresh / reset), in-memory JWT on the frontend, manual agent trigger, polling instead of websockets.

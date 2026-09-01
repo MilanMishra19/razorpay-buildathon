@@ -73,9 +73,17 @@ Then read the three panels on the right:
 And the verdict strip: **DEMANDED 50 · PURCHASED 1**.
 
 > "Two defences, neither of which trusts the model. The screen strips instruction-shaped text
-> before the prompt is built. And the output is schema-constrained to `{catalog_id, quantity}` —
-> there is no field in which a compromised model could express an instruction, a credential, or
-> an action. Behind both, the checkout API re-checks every cap anyway."
+> before the prompt is built. And the output is schema-constrained — the model returns a cart and
+> nothing that could carry a credential or an action. Behind both, the checkout API re-checks every
+> cap anyway."
+
+The schema does leave the model one free-text field — `rationale`, the sentence explaining a
+substitution — and that field is read by a person deciding whether to approve.
+
+> "So it gets the same treatment the catalog does: capped to a sentence and run through the same
+> screen. If it reads like an instruction rather than an explanation, the swap still stands — that
+> was checked against the catalog — but the model's argument for it never reaches the approval
+> screen. The one channel from the model to the user is the one we watch hardest."
 
 ## 4 · Prove the record  (90s)
 
@@ -107,6 +115,18 @@ set Daawat Basmati Rice to **50** and press **PROPOSE** — a cart the agent wou
 is exactly the 50 units the poisoned listing demanded. `rejected · exceeds per-order cap`, nothing
 charged. That is the backstop behind the injection defence: the guardrail re-checks every caller,
 agent or not.
+
+**A substitution.** Go to **Catalog**, switch to **Household**, and mark *Good Knight Refill* — the
+one greyed out as `OUT OF STOCK` — as low. Run the agent. It cannot buy what you asked for, so it
+buys the nearest in-stock item in the same category and says why. The cart goes to **Approvals**
+even though the budget has room, with the swapped line marked **SWAPPED IN** and the item you
+actually asked for named underneath.
+
+> "Buying something the user did not choose is a different kind of decision from spending money they
+> already approved, so it asks — regardless of budget. And the swap is a claim about the world, so
+> the agent checks it against the catalog before proposing: the replaced item has to be one you
+> queued and actually be unavailable. A model that invents a shortage loses the claim and buys the
+> item on its own merits."
 
 **Payment failure and retry.** Restart the backend with `RAZORPAY_FORCE_FAILURE=true`. The
 payment records as `failed` with its reason in the timeline, and `POST /payment-mandates/{id}/retry`

@@ -17,6 +17,16 @@ CART_SCHEMA = {
                 "properties": {
                     "catalog_id": {"type": "integer"},
                     "quantity": {"type": "integer"},
+                    "substitutes_for": {
+                        "type": "integer",
+                        "nullable": True,
+                        "description": "catalog_id of the unavailable item this stands in for, if any",
+                    },
+                    "rationale": {
+                        "type": "string",
+                        "nullable": True,
+                        "description": "one short sentence on why this substitute fits, required when substitutes_for is set",
+                    },
                 },
                 "required": ["catalog_id", "quantity"],
             },
@@ -98,24 +108,61 @@ class GeminiDecider:
 
 
 class OfflineDecider:
+    """
+    Stands in for the model when none is reachable. Buys one of each in-stock listed item, and for
+    anything out of stock reaches for the nearest in-stock item by price in the same category — the
+    same shape of answer the model gives, arrived at by rule instead of judgement.
+    """
+
     def __call__(self, mandate, entries, items, instruction) -> Decision:
         by_id = {item.id: item for item in items}
         budget = min(mandate.per_order_cap, mandate.remaining_monthly_budget)
+        queued = {entry.catalog_id for entry in entries}
 
         lines: list[CartLine] = []
         running = Decimal("0")
         for entry in entries:
             item = by_id.get(entry.catalog_id)
-            if item is None or item.stock_status != "in_stock":
+            if item is None:
                 continue
+
+            substitutes_for = None
+            rationale = None
+            if item.stock_status != "in_stock":
+                chosen = [line.catalog_id for line in lines]
+                item = self._nearest_in_stock(item, items, queued, chosen)
+                if item is None:
+                    continue
+                substitutes_for = entry.catalog_id
+                rationale = f"closest in-stock price to the unavailable item, at {item.price}"
+
             if running + item.price > budget:
                 continue
             running += item.price
-            lines.append(CartLine(catalog_id=item.id, quantity=1))
+            lines.append(
+                CartLine(
+                    catalog_id=item.id,
+                    quantity=1,
+                    substitutes_for=substitutes_for,
+                    rationale=rationale,
+                )
+            )
 
         raw = json.dumps({"items": [line.model_dump() for line in lines]})
         prompt = full_prompt(build_user_content(instruction, mandate, entries, items))
         return Decision(lines, f"{prompt}\n\n[offline decider: no model was called]", raw)
+
+    @staticmethod
+    def _nearest_in_stock(missing, items, queued, chosen):
+        candidates = [
+            item
+            for item in items
+            if item.stock_status == "in_stock"
+            and item.category == missing.category
+            and item.id not in queued
+            and item.id not in chosen
+        ]
+        return min(candidates, key=lambda item: abs(item.price - missing.price), default=None)
 
 
 def is_transient(exc: Exception) -> bool:

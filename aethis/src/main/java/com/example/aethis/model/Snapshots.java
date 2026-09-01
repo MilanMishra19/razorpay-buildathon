@@ -30,6 +30,8 @@ public final class Snapshots {
             line.put("catalogId", item.catalogId());
             line.put("quantity", item.quantity());
             line.put("unitPrice", item.unitPrice().toPlainString());
+            line.put("substitutesFor", item.substitutesFor());
+            line.put("rationale", item.rationale());
             items.add(line);
         }
 

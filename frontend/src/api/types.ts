@@ -40,10 +40,19 @@ export interface CatalogItem {
   description: string | null;
 }
 
+export interface ProposedLine {
+  catalog_id: number;
+  quantity: number;
+  substitutes_for: number | null;
+  rationale: string | null;
+}
+
 export interface CartItem {
   catalog_id: number;
   quantity: number;
   unit_price: number;
+  substitutes_for: number | null;
+  rationale: string | null;
 }
 
 export interface CartMandate {
@@ -85,7 +94,7 @@ export interface AgentRun {
   restock_snapshot: number[];
   prompt: string;
   raw_response: string;
-  parsed_cart: { catalog_id: number; quantity: number }[] | null;
+  parsed_cart: ProposedLine[] | null;
   flagged_catalog_ids: number[] | null;
   cart_mandate_id: number | null;
   created_at: string;
@@ -108,12 +117,14 @@ export interface AgentRunResult {
   cart_mandate_id: number | null;
   outcome: string;
   reason: string | null;
-  proposed_cart: { catalog_id: number; quantity: number }[];
+  proposed_cart: ProposedLine[];
   flagged_catalog_ids: number[];
   dropped_catalog_ids: number[];
   payment_status: string | null;
   model_unavailable: string | null;
   instruction_used: string | null;
+  rejected_substitutions: number[];
+  withheld_rationales: number[];
 }
 
 export interface AgentRunReport {
