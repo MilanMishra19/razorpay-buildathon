@@ -1,30 +1,25 @@
 import type { CartItem, CartMandate, PolicyCheck } from '../api/types';
 import { Icon, money } from './ui';
+import { Stamp } from './Stamp';
 
 const MARK: Record<string, { glyph: string; color: string }> = {
   PASS: { glyph: '✓', color: 'var(--ok)' },
-  ESCALATE: { glyph: '⚠', color: 'var(--brand)' },
+  ESCALATE: { glyph: '§', color: 'var(--stamp)' },
   FAIL: { glyph: '✕', color: 'var(--bad)' },
 };
 
-const VERDICT: Record<string, { label: string; color: string }> = {
-  approved: { label: 'APPROVED', color: 'var(--ok)' },
-  pending_approval: { label: 'PENDING APPROVAL', color: 'var(--brand)' },
-  rejected: { label: 'REJECTED', color: 'var(--bad)' },
-  pending: { label: 'PENDING', color: 'var(--ink-dim)' },
-};
-
 /**
- * The whole argument of the product in one component: what the model chose on the left, what the
- * deterministic engine allowed on the right, and an arrow between them that only points one way.
+ * The whole argument of the product in one component. The agent's side is drawn in pencil and
+ * dashed, because a proposal can be rubbed out. The policy's side is ruled and stamped, because its
+ * mark is the record. You should be able to tell them apart with the text blurred.
  */
 export function DecisionSplit({ cart, name }: { cart: CartMandate; name: (id: number) => string }) {
   const swap = cart.cart_items.find((item) => item.substitutes_for != null);
-  const verdict = VERDICT[cart.status] ?? VERDICT.pending;
+  const checks = cart.policy_decision?.checks ?? [];
 
   return (
-    <div style={{ display: 'flex', gap: 0, flexWrap: 'wrap', alignItems: 'stretch' }}>
-      <Side title="AI DECISION" tone="var(--ink-dim)">
+    <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'stretch' }}>
+      <Side title="WRITTEN BY THE AGENT" tone="var(--pencil)" hand="pencil" delay={0}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
           {cart.cart_items.map((item, index) => (
             <ProposedLine key={index} item={item} name={name} />
@@ -37,38 +32,15 @@ export function DecisionSplit({ cart, name }: { cart: CartMandate; name: (id: nu
             {swap.rationale ? `. ${swap.rationale}` : '.'}
           </p>
         )}
-        <span className="mono" style={{ display: 'block', marginTop: 16, fontSize: 10, color: 'var(--ink-faint)' }}>
+        <span className="mono" style={{ display: 'block', marginTop: 16, fontSize: 10, color: 'var(--pencil)' }}>
           PROPOSAL ONLY · NO SPENDING AUTHORITY
         </span>
       </Side>
 
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '0 6px',
-          flexShrink: 0,
-        }}
-      >
-        <span
-          className="mono"
-          style={{
-            writingMode: 'horizontal-tb',
-            fontSize: 9,
-            letterSpacing: '0.14em',
-            color: 'var(--ink-ghost)',
-            transform: 'rotate(0deg)',
-          }}
-        >
-          →
-        </span>
-      </div>
-
-      <Side title="POLICY DECISION" tone={verdict.color}>
+      <Side title="DECIDED BY POLICY" tone="var(--stamp)" hand="ink" delay={80}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-          {(cart.policy_decision?.checks ?? []).map((check) => (
-            <CheckRow key={check.name} check={check} />
+          {checks.map((check, index) => (
+            <CheckRow key={check.name} check={check} delay={90 + index * 70} />
           ))}
           {!cart.policy_decision && (
             <span style={{ fontSize: 12, color: 'var(--ink-faint)' }}>
@@ -78,18 +50,24 @@ export function DecisionSplit({ cart, name }: { cart: CartMandate; name: (id: nu
         </div>
         <div
           style={{
-            marginTop: 16,
-            paddingTop: 14,
+            marginTop: 18,
+            paddingTop: 16,
             borderTop: '1px solid var(--line)',
             display: 'flex',
             alignItems: 'center',
-            gap: 10,
+            gap: 14,
           }}
         >
-          <span className="mono" style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', color: verdict.color }}>
-            {verdict.label}
-          </span>
-          <span className="mono" style={{ marginLeft: 'auto', fontSize: 13, color: 'var(--ink-2)' }}>
+          <Stamp
+            status={cart.status}
+            checks={checks.length}
+            reference={cart.id}
+            delay={150 + checks.length * 70}
+          />
+          <span
+            className="wide"
+            style={{ marginLeft: 'auto', fontSize: 20, fontWeight: 700, letterSpacing: '-0.01em' }}
+          >
             {money(cart.total_amount)}
           </span>
         </div>
@@ -98,19 +76,38 @@ export function DecisionSplit({ cart, name }: { cart: CartMandate; name: (id: nu
   );
 }
 
-function Side({ title, tone, children }: { title: string; tone: string; children: React.ReactNode }) {
+function Side({
+  title,
+  tone,
+  hand,
+  delay,
+  children,
+}: {
+  title: string;
+  tone: string;
+  hand: 'pencil' | 'ink';
+  delay: number;
+  children: React.ReactNode;
+}) {
+  const provisional = hand === 'pencil';
   return (
     <section
+      className="rise"
       style={{
+        animationDelay: `${delay}ms`,
         flex: '1 1 300px',
         minWidth: 280,
-        border: '1px solid var(--line)',
+        border: provisional ? '1px dashed var(--pencil-line)' : '1px solid var(--line-hot)',
+        borderTop: provisional ? '2px dashed var(--pencil-line)' : `2px solid ${tone}`,
         borderRadius: 'var(--radius)',
         background: 'var(--panel)',
         padding: '16px 18px',
       }}
     >
-      <span className="mono" style={{ display: 'block', fontSize: 9, letterSpacing: '0.2em', color: tone, marginBottom: 14 }}>
+      <span
+        className="mono"
+        style={{ display: 'block', fontSize: 9, fontWeight: 500, letterSpacing: '0.2em', color: tone, marginBottom: 14 }}
+      >
         {title}
       </span>
       {children}
@@ -127,10 +124,10 @@ function ProposedLine({ item, name }: { item: CartItem; name: (id: number) => st
           style={{
             fontSize: 8,
             letterSpacing: '0.1em',
-            color: 'var(--brand)',
-            border: '1px solid var(--brand-line)',
-            borderRadius: 'var(--radius-pill)',
-            padding: '2px 7px',
+            color: 'var(--pencil)',
+            border: '1px dashed var(--pencil-line)',
+            borderRadius: 'var(--radius-sm)',
+            padding: '2px 6px',
             flexShrink: 0,
           }}
         >
@@ -144,12 +141,15 @@ function ProposedLine({ item, name }: { item: CartItem; name: (id: number) => st
   );
 }
 
-function CheckRow({ check }: { check: PolicyCheck }) {
+function CheckRow({ check, delay }: { check: PolicyCheck; delay: number }) {
   const mark = MARK[check.outcome] ?? MARK.PASS;
   const hasNumbers = check.limit != null && check.actual != null;
 
   return (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, fontSize: 12.5 }}>
+    <div
+      className="tick"
+      style={{ animationDelay: `${delay}ms`, display: 'flex', alignItems: 'baseline', gap: 10, fontSize: 12.5 }}
+    >
       <span className="mono" style={{ color: mark.color, width: 12, flexShrink: 0 }}>{mark.glyph}</span>
       <span style={{ color: 'var(--ink-2)', width: 132, flexShrink: 0 }}>{check.name}</span>
       <span style={{ flexGrow: 1, color: 'var(--ink-faint)', fontSize: 11.5, lineHeight: 1.45 }}>
@@ -205,7 +205,7 @@ function Figure({ label, value, tone }: { label: string; value: string; tone?: s
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       <span className="label">{label}</span>
-      <span className="mono" style={{ fontSize: 17, color: tone ?? 'var(--ink)' }}>{value}</span>
+      <span className="wide" style={{ fontSize: 19, fontWeight: 700, color: tone ?? 'var(--ink)' }}>{value}</span>
     </div>
   );
 }

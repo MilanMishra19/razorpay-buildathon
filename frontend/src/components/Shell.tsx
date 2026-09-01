@@ -35,7 +35,7 @@ export function Shell() {
           top: 0,
           zIndex: 20,
           borderBottom: '1px solid var(--line)',
-          background: 'rgba(255, 255, 255, 0.86)',
+          background: 'rgba(248, 249, 245, 0.9)',
           backdropFilter: 'blur(12px)',
           display: 'flex',
           alignItems: 'center',
@@ -46,19 +46,21 @@ export function Shell() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
           <span
             style={{
-              width: 30,
-              height: 30,
-              borderRadius: 9,
-              background: 'var(--brand)',
+              width: 28,
+              height: 28,
+              borderRadius: 3,
+              background: 'var(--stamp)',
               display: 'grid',
               placeItems: 'center',
-              boxShadow: '0 4px 12px -4px rgba(255, 95, 31, 0.6)',
             }}
           >
             {Icon.logo('#fff', 17)}
           </span>
-          <span style={{ fontFamily: 'var(--display)', fontSize: 19, fontWeight: 800, letterSpacing: '-0.03em' }}>
-            aethis
+          <span
+            className="wide"
+            style={{ fontSize: 17, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}
+          >
+            Aethis
           </span>
         </div>
 
@@ -71,14 +73,13 @@ export function Shell() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 7,
-                height: 34,
-                padding: '0 14px',
-                borderRadius: 'var(--radius-pill)',
+                height: 32,
+                padding: '0 12px',
+                borderRadius: 'var(--radius-sm)',
                 fontSize: 12.5,
-                fontWeight: 600,
-                letterSpacing: '-0.01em',
-                color: isActive ? 'var(--ink)' : 'var(--ink-dim)',
-                background: isActive ? 'var(--panel-sunken)' : 'transparent',
+                fontWeight: isActive ? 600 : 450,
+                color: isActive ? '#fff' : 'var(--ink-dim)',
+                background: isActive ? 'var(--ink)' : 'transparent',
               })}
             >
               {item.label}
@@ -90,7 +91,7 @@ export function Shell() {
                     color: '#fff',
                     minWidth: 18,
                     height: 18,
-                    borderRadius: 'var(--radius-pill)',
+                    borderRadius: 2,
                     display: 'grid',
                     placeItems: 'center',
                     padding: '0 5px',
@@ -111,11 +112,12 @@ export function Shell() {
               display: 'flex',
               alignItems: 'center',
               gap: 7,
-              height: 28,
-              padding: '0 12px',
-              borderRadius: 'var(--radius-pill)',
-              background: pendingCount > 0 ? 'var(--brand-soft)' : 'var(--ok-bg)',
-              color: pendingCount > 0 ? 'var(--brand)' : 'var(--ok)',
+              height: 26,
+              padding: '0 10px',
+              borderRadius: 'var(--radius-sm)',
+              border: `1px solid ${pendingCount > 0 ? 'var(--stamp-line)' : 'var(--ok-line)'}`,
+              background: pendingCount > 0 ? 'var(--stamp-soft)' : 'var(--ok-bg)',
+              color: pendingCount > 0 ? 'var(--stamp)' : 'var(--ok)',
               letterSpacing: '0.08em',
               fontWeight: 500,
             }}

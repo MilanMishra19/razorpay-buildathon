@@ -26,22 +26,25 @@ export function BudgetMeter({ spent, cap, escalationPct, pending = 0, height = 5
         }}
       >
         <div
+          className="fill"
           style={{
             position: 'absolute',
             inset: 0,
             width: `${spentPct}%`,
-            background: pending ? 'var(--ink-2)' : 'linear-gradient(90deg, #2f5f4a, var(--ok))',
+            background: pending ? 'var(--ink-2)' : 'var(--ok)',
           }}
         />
         {pending > 0 && (
           <div
+            className="fill"
             style={{
+              animationDelay: '180ms',
               position: 'absolute',
               top: 0,
               bottom: 0,
               left: `${spentPct}%`,
               width: `${Math.max(0, projectedPct - spentPct)}%`,
-              background: 'linear-gradient(90deg, var(--brand), #ff8a54)',
+              background: 'repeating-linear-gradient(135deg, var(--stamp) 0 6px, #5c3ea3 6px 12px)',
             }}
           />
         )}
@@ -51,7 +54,7 @@ export function BudgetMeter({ spent, cap, escalationPct, pending = 0, height = 5
             top: 0,
             bottom: 0,
             left: `${escalationPct}%`,
-            borderLeft: '1px dashed var(--bad)',
+            borderLeft: '1px dashed var(--caution)',
           }}
         />
         <div
@@ -62,7 +65,7 @@ export function BudgetMeter({ spent, cap, escalationPct, pending = 0, height = 5
             left: `calc(${escalationPct}% + 9px)`,
             fontSize: 9,
             letterSpacing: '0.14em',
-            color: 'var(--bad)',
+            color: 'var(--caution)',
           }}
         >
           ESC {escalationPct}%

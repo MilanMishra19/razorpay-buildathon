@@ -147,9 +147,10 @@ export function Catalog() {
               gap: 14,
             }}
           >
-            {visible.map((item) => (
+            {visible.map((item, index) => (
               <ProductCard
                 key={item.id}
+                delay={index * 32}
                 item={item}
                 flagged={flagged.has(item.id)}
                 queued={queued.has(item.id)}
@@ -236,6 +237,7 @@ export function Catalog() {
 
 function ProductCard({
   item,
+  delay,
   flagged,
   queued,
   quantity,
@@ -245,6 +247,7 @@ function ProductCard({
   onPropose,
 }: {
   item: CatalogItem;
+  delay: number;
   flagged: boolean;
   queued: boolean;
   quantity: number;
@@ -256,7 +259,9 @@ function ProductCard({
   const outOfStock = item.stock_status === 'out_of_stock';
   return (
     <div
+      className="rise sheet"
       style={{
+        animationDelay: `${delay}ms`,
         border: `1px solid ${flagged ? 'var(--bad-line)' : 'var(--line)'}`,
         borderRadius: 'var(--radius)',
         background: 'var(--panel)',
@@ -287,7 +292,7 @@ function ProductCard({
               bottom: 8,
               background: 'var(--ink)',
               color: '#fff',
-              borderRadius: 'var(--radius-pill)',
+              borderRadius: 'var(--radius-sm)',
               padding: '3px 9px',
               fontSize: 8.5,
               letterSpacing: '0.12em',
@@ -305,7 +310,7 @@ function ProductCard({
               left: 8,
               background: 'var(--bad)',
               color: '#fff',
-              borderRadius: 'var(--radius-pill)',
+              borderRadius: 'var(--radius-sm)',
               padding: '3px 9px',
               fontSize: 8.5,
               letterSpacing: '0.1em',
@@ -320,19 +325,19 @@ function ProductCard({
         <span style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.35, color: 'var(--ink)' }}>{item.name}</span>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto' }}>
-          <span style={{ fontFamily: 'var(--display)', fontSize: 19, fontWeight: 700 }}>{money(item.price)}</span>
+          <span className="wide" style={{ fontSize: 18, fontWeight: 700 }}>{money(item.price)}</span>
           <button
             onClick={onMarkLow}
             disabled={queued || outOfStock}
             style={{
               height: 30,
               padding: '0 14px',
-              borderRadius: 'var(--radius-pill)',
+              borderRadius: 'var(--radius-sm)',
               fontSize: 11,
               fontWeight: 700,
               letterSpacing: '0.02em',
-              border: `1px solid ${queued ? 'var(--ok-line)' : 'var(--brand)'}`,
-              background: queued ? 'var(--ok-bg)' : 'var(--brand)',
+              border: `1px solid ${queued ? 'var(--ok-line)' : 'var(--stamp)'}`,
+              background: queued ? 'var(--ok-bg)' : 'var(--stamp)',
               color: queued ? 'var(--ok)' : '#fff',
             }}
           >
@@ -354,7 +359,7 @@ function ProductCard({
               display: 'flex',
               alignItems: 'center',
               border: '1px solid var(--line)',
-              borderRadius: 'var(--radius-pill)',
+              borderRadius: 'var(--radius-sm)',
             }}
           >
             <button
@@ -382,7 +387,7 @@ function ProductCard({
             style={{
               flexGrow: 1,
               height: 26,
-              borderRadius: 'var(--radius-pill)',
+              borderRadius: 'var(--radius-sm)',
               border: '1px solid var(--line-hot)',
               background: 'none',
               color: 'var(--ink-dim)',

@@ -104,7 +104,16 @@ export function ChainIntegrity() {
             return (
               <div key={`${entry.timestamp}-${index}`}>
                 <div
-                  style={{ border: `1px solid ${border}`, background, padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 18 }}
+                  style={{
+                    border: `1px solid ${border}`,
+                    background,
+                    padding: '12px 18px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 18,
+                    borderRadius: 'var(--radius-sm)',
+                    transition: 'background 220ms ease, border-color 220ms ease',
+                  }}
                 >
                   <span className="mono" style={{ width: 26, fontSize: 14, color: isBad ? 'var(--bad)' : isOk ? 'var(--ink-dim)' : 'var(--ink-ghost)' }}>
                     {String(n).padStart(2, '0')}
@@ -120,8 +129,8 @@ export function ChainIntegrity() {
                     {clockTime(entry.timestamp)}
                   </span>
                   <span style={{ width: 22, display: 'flex', justifyContent: 'center' }}>
-                    {isOk && Icon.check('var(--ok)', 16)}
-                    {isBad && Icon.cross('var(--bad)', 16)}
+                    {isOk && <span className="stamp" style={{ display: 'flex' }}>{Icon.check('var(--ok)', 16)}</span>}
+                    {isBad && <span className="stamp" style={{ display: 'flex' }}>{Icon.cross('var(--bad)', 16)}</span>}
                     {!isOk && !isBad && <span style={{ width: 9, height: 9, border: '1px solid var(--line-hot)' }} />}
                   </span>
                 </div>
@@ -130,7 +139,8 @@ export function ChainIntegrity() {
                     style={{
                       height: 14,
                       marginLeft: 39,
-                      borderLeft: `2px solid ${isOk && checked > n ? 'var(--ok-line)' : 'var(--line)'}`,
+                      borderLeft: `2px solid ${isOk && checked > n ? 'var(--ok)' : 'var(--line)'}`,
+                      transition: 'border-color 220ms ease',
                     }}
                   />
                 )}
@@ -144,12 +154,23 @@ export function ChainIntegrity() {
         <Panel tone={view.tone} style={{ padding: 26 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center', textAlign: 'center' }}>
-              <div style={{ width: 52, height: 52, border: `1px solid ${view.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div
+                style={{
+                  width: 52,
+                  height: 52,
+                  border: `2px solid ${view.color}`,
+                  outline: `1px solid ${view.color}`,
+                  outlineOffset: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
                 {phase === 'valid' && Icon.check('var(--ok)', 24)}
                 {phase === 'broken' && Icon.cross('var(--bad)', 24)}
                 {(phase === 'idle' || phase === 'running') && Icon.shield(view.color, 24)}
               </div>
-              <span className="mono" style={{ fontSize: 15, letterSpacing: '0.16em', color: view.color }}>
+              <span className="wide" style={{ fontSize: 15, fontWeight: 800, letterSpacing: '0.18em', color: view.color }}>
                 {view.label}
               </span>
               <p style={{ margin: 0, fontSize: 12, lineHeight: 1.55, color: 'var(--ink-dim)' }}>{view.blurb}</p>

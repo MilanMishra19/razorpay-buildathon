@@ -64,7 +64,7 @@ export function Login() {
           position: 'absolute',
           inset: 0,
           backgroundImage:
-            'radial-gradient(circle at 20% 15%, #ffe9dc 0, transparent 45%), radial-gradient(circle at 82% 78%, #e8f3ec 0, transparent 48%)',
+            'radial-gradient(circle at 18% 12%, #e3e0f2 0, transparent 46%), radial-gradient(circle at 84% 80%, #dde7de 0, transparent 44%)',
         }}
       />
 
@@ -72,19 +72,21 @@ export function Login() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span
             style={{
-              width: 44,
-              height: 44,
-              borderRadius: 13,
-              background: 'var(--brand)',
+              width: 42,
+              height: 42,
+              borderRadius: 4,
+              background: 'var(--stamp)',
               display: 'grid',
               placeItems: 'center',
-              boxShadow: '0 8px 20px -6px rgba(255, 95, 31, 0.55)',
             }}
           >
             {Icon.logo('#fff', 25)}
           </span>
-          <span style={{ fontFamily: 'var(--display)', fontSize: 34, fontWeight: 800, letterSpacing: '-0.035em' }}>
-            aethis
+          <span
+            className="wide"
+            style={{ fontSize: 30, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}
+          >
+            Aethis
           </span>
         </div>
         <span className="label">Groceries your agent buys, and you can audit</span>
@@ -137,8 +139,8 @@ export function Login() {
             disabled={busy}
             style={{
               height: 48,
-              borderRadius: 'var(--radius-pill)',
-              background: 'var(--brand)',
+              borderRadius: 'var(--radius-sm)',
+              background: 'var(--stamp)',
               color: '#fff',
               fontSize: 12,
               fontWeight: 700,

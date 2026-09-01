@@ -33,7 +33,7 @@ const BY_CATEGORY: [RegExp, string][] = [
   [/personal|care|beauty/i, '🧴'],
 ];
 
-const TINTS = ['#fff1e8', '#eef7f1', '#f0f2fd', '#fdf3e6', '#f6effa', '#eaf6f9', '#fdf0f2', '#f2f6ea'];
+const TINTS = ['#e6e8de', '#e2e9e2', '#e4e5ee', '#eae7dd', '#e7e3ec', '#dfe8ea', '#ece4e2', '#e5eadd'];
 
 export function productGlyph(item: CatalogItem): string {
   const named = BY_NAME.find(([pattern]) => pattern.test(item.name));

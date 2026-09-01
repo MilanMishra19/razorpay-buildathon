@@ -114,8 +114,8 @@ export function ChatPanel({ onChanged }: { onChanged: () => void }) {
           style={{
             width: 24,
             height: 24,
-            borderRadius: 8,
-            background: 'var(--brand)',
+            borderRadius: 3,
+            background: 'var(--stamp)',
             display: 'grid',
             placeItems: 'center',
           }}
@@ -133,8 +133,23 @@ export function ChatPanel({ onChanged }: { onChanged: () => void }) {
           <Bubble key={index} turn={turn} onConfirm={confirm} busy={busy} />
         ))}
         {busy && (
-          <span className="mono" style={{ fontSize: 11, color: 'var(--ink-faint)' }}>
-            thinking…
+          <span
+            className="mono"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--ink-faint)' }}
+          >
+            reading intent
+            {[0, 1, 2].map((dot) => (
+              <span
+                key={dot}
+                className="pulse"
+                style={{
+                  width: 3,
+                  height: 3,
+                  background: 'var(--pencil)',
+                  animationDelay: `${dot * 160}ms`,
+                }}
+              />
+            ))}
           </span>
         )}
         <div ref={endRef} />
@@ -148,7 +163,7 @@ export function ChatPanel({ onChanged }: { onChanged: () => void }) {
               onClick={() => send(suggestion)}
               style={{
                 border: '1px solid var(--line)',
-                borderRadius: 'var(--radius-pill)',
+                borderRadius: 'var(--radius-sm)',
                 background: 'var(--panel-sunken)',
                 color: 'var(--ink-dim)',
                 padding: '6px 12px',
@@ -180,8 +195,8 @@ export function ChatPanel({ onChanged }: { onChanged: () => void }) {
           style={{
             height: 40,
             padding: '0 20px',
-            borderRadius: 'var(--radius-pill)',
-            background: 'var(--brand)',
+            borderRadius: 'var(--radius-sm)',
+            background: 'var(--stamp)',
             color: '#fff',
             fontSize: 12,
             fontWeight: 700,
@@ -205,12 +220,15 @@ function Bubble({
 }) {
   const mine = turn.who === 'you';
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: mine ? 'flex-end' : 'flex-start', gap: 8 }}>
+    <div
+      className="rise"
+      style={{ display: 'flex', flexDirection: 'column', alignItems: mine ? 'flex-end' : 'flex-start', gap: 8 }}
+    >
       <div
         style={{
           maxWidth: '84%',
-          borderRadius: mine ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-          background: mine ? 'var(--brand)' : 'var(--panel-sunken)',
+          borderRadius: mine ? '5px 5px 1px 5px' : '5px 5px 5px 1px',
+          background: mine ? 'var(--ink)' : 'var(--panel-sunken)',
           color: mine ? '#fff' : 'var(--ink-2)',
           padding: '11px 14px',
           fontSize: 13,
@@ -253,9 +271,9 @@ function Bubble({
             onClick={() => onConfirm(turn.proposal!)}
             disabled={busy}
             style={{
-              height: 36,
-              borderRadius: 'var(--radius-pill)',
-              background: 'var(--brand)',
+              height: 34,
+              borderRadius: 'var(--radius-sm)',
+              background: 'var(--stamp)',
               color: '#fff',
               fontSize: 11,
               fontWeight: 700,

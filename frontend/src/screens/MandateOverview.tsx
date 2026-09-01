@@ -176,7 +176,7 @@ export function MandateOverview() {
 
         <Panel title="STANDING INSTRUCTION">
           <div style={{ padding: '18px 20px', display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-            <span style={{ width: 3, alignSelf: 'stretch', borderRadius: 2, background: 'var(--brand)', flexShrink: 0 }} />
+            <span style={{ width: 3, alignSelf: 'stretch', background: 'var(--stamp)', flexShrink: 0 }} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
               <span style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--ink-2)' }}>
                 {m.standing_instruction ?? (
@@ -206,7 +206,7 @@ export function MandateOverview() {
         <Panel style={{ padding: '26px 28px 22px', display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-              <span style={{ fontFamily: 'var(--display)', fontSize: 42, fontWeight: 800, letterSpacing: '-0.035em' }}>
+              <span className="wide" style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-0.02em' }}>
                 {money(m.spent_this_period)}
               </span>
               <span className="mono" style={{ fontSize: 16, color: 'var(--ink-faint)' }}>
@@ -261,7 +261,7 @@ export function MandateOverview() {
                   borderBottom: '1px solid var(--line-soft)',
                 }}
               >
-                <span style={{ width: 3, height: 26, borderRadius: 2, background: eventColor(entry.event), flexShrink: 0 }} />
+                <span style={{ width: 3, height: 26, background: eventColor(entry.event), flexShrink: 0 }} />
                 <span
                   className="mono"
                   style={{ fontSize: 10, letterSpacing: '0.1em', color: eventColor(entry.event), width: 130, textTransform: 'uppercase' }}
@@ -288,7 +288,7 @@ export function MandateOverview() {
             ) : (
               queueForCategory.map((entry) => (
                 <div key={entry.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: 'var(--ink-2)' }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand)', flexShrink: 0 }} />
+                  <span style={{ width: 6, height: 6, background: 'var(--stamp)', flexShrink: 0 }} />
                   {entry.catalog_name ?? `#${entry.catalog_id}`}
                 </div>
               ))

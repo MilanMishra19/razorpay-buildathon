@@ -68,7 +68,7 @@ export function Transactions() {
                 style={{
                   height: 34,
                   padding: '0 14px',
-                  borderRadius: 'var(--radius-pill)',
+                  borderRadius: 'var(--radius-sm)',
                   border: `1px solid ${active ? 'var(--ink)' : 'var(--line)'}`,
                   background: active ? 'var(--ink)' : 'var(--panel)',
                   color: active ? '#fff' : 'var(--ink-dim)',

@@ -77,7 +77,7 @@ export function AIBuyer() {
                     style={{
                       flexGrow: 1,
                       height: 32,
-                      borderRadius: 'var(--radius-pill)',
+                      borderRadius: 'var(--radius-sm)',
                       border: `1px solid ${state?.interval_seconds === seconds ? 'var(--ink)' : 'var(--line)'}`,
                       background: state?.interval_seconds === seconds ? 'var(--ink)' : 'var(--panel)',
                       color: state?.interval_seconds === seconds ? '#fff' : 'var(--ink-dim)',
@@ -157,7 +157,7 @@ function Cycle({ record }: { record: CycleRecord }) {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 9, fontSize: 12.5 }}>
-        <span style={{ width: 6, height: 6, borderRadius: '50%', background: outcome.color, flexShrink: 0 }} />
+        <span style={{ width: 6, height: 6, background: outcome.color, flexShrink: 0 }} />
         <span style={{ textTransform: 'capitalize', color: 'var(--ink-2)' }}>{record.category}</span>
         <span style={{ color: outcome.color }}>{outcome.label}</span>
         <span className="mono" style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--ink-ghost)' }}>
@@ -202,7 +202,7 @@ function Switch({ on, onClick }: { on: boolean; onClick: () => void }) {
       style={{
         width: 46,
         height: 26,
-        borderRadius: 'var(--radius-pill)',
+        borderRadius: 3,
         background: on ? 'var(--ok)' : 'var(--line-hot)',
         position: 'relative',
         flexShrink: 0,
@@ -215,7 +215,7 @@ function Switch({ on, onClick }: { on: boolean; onClick: () => void }) {
           left: on ? 23 : 3,
           width: 20,
           height: 20,
-          borderRadius: '50%',
+          borderRadius: 2,
           background: '#fff',
           transition: 'left 0.16s ease',
           boxShadow: '0 1px 3px rgba(0,0,0,0.25)',

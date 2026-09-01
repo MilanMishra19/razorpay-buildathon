@@ -39,12 +39,13 @@ export function Panel({
   };
   return (
     <section
-      className={tone === 'ledger' ? 'ledger' : undefined}
+      className={tone === 'ledger' ? 'ledger' : tone === 'neutral' ? 'sheet' : undefined}
       style={{
         border: `1px solid ${tones[tone].border}`,
         background: tones[tone].background,
         borderRadius: 'var(--radius)',
         boxShadow: tone === 'neutral' ? 'var(--lift)' : 'none',
+        borderTop: tone === 'neutral' ? '1px solid var(--line)' : `2px solid ${tones[tone].ink}`,
         overflow: 'hidden',
         ...style,
       }}
@@ -85,7 +86,7 @@ export function Button({
   disabled?: boolean;
 }) {
   const variants = {
-    primary: { background: 'var(--brand)', color: '#fff', border: '1px solid var(--brand)' },
+    primary: { background: 'var(--stamp)', color: '#fff', border: '1px solid var(--stamp)' },
     ok: { background: 'var(--ok)', color: '#fff', border: '1px solid var(--ok)' },
     ghost: { background: 'var(--panel)', color: 'var(--ink-2)', border: '1px solid var(--line-hot)' },
     danger: { background: 'var(--panel)', color: 'var(--bad)', border: '1px solid var(--bad-line)' },
@@ -95,15 +96,15 @@ export function Button({
       onClick={onClick}
       disabled={disabled}
       style={{
-        height: 42,
-        padding: '0 22px',
+        height: 40,
+        padding: '0 18px',
         display: 'inline-flex',
         alignItems: 'center',
         gap: 9,
         fontSize: 11,
         fontWeight: 700,
-        letterSpacing: '0.12em',
-        borderRadius: 'var(--radius-pill)',
+        letterSpacing: '0.1em',
+        borderRadius: 'var(--radius-sm)',
         ...variants[variant],
       }}
     >
@@ -113,14 +114,14 @@ export function Button({
 }
 
 const EVENT_TONE: Record<AuditEvent, string> = {
-  issued: 'var(--amber)',
+  issued: 'var(--stamp)',
   approved: 'var(--ok)',
   approved_by_user: 'var(--ok)',
   paid: 'var(--ok)',
   rejected: 'var(--bad)',
   declined_by_user: 'var(--bad)',
   failed: 'var(--bad)',
-  awaiting_approval: 'var(--amber)',
+  awaiting_approval: 'var(--stamp)',
   expired: 'var(--ink-faint)',
   revoked: 'var(--ink-faint)',
 };
@@ -132,12 +133,12 @@ export function eventColor(event: AuditEvent): string {
 export function statusColor(status: CartStatus): string {
   if (status === 'approved') return 'var(--ok)';
   if (status === 'rejected') return 'var(--bad)';
-  if (status === 'pending_approval') return 'var(--amber)';
+  if (status === 'pending_approval') return 'var(--stamp)';
   return 'var(--ink-faint)';
 }
 
 export function Pip({ color }: { color: string }) {
-  return <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, display: 'inline-block', flexShrink: 0 }} />;
+  return <span style={{ width: 6, height: 6, background: color, display: 'inline-block', flexShrink: 0 }} />;
 }
 
 export function Chip({ color, children }: { color: string; children: ReactNode }) {
@@ -149,8 +150,8 @@ export function Chip({ color, children }: { color: string; children: ReactNode }
         alignItems: 'center',
         gap: 7,
         border: `1px solid ${color}`,
-        borderRadius: 'var(--radius-pill)',
-        padding: '4px 11px',
+        borderRadius: 'var(--radius-sm)',
+        padding: '4px 9px',
         fontSize: 10,
         letterSpacing: '0.14em',
         color,

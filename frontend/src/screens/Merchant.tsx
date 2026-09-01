@@ -4,6 +4,7 @@ import { useResource } from '../api/useResource';
 import { useSession } from '../auth/AuthContext';
 import type { MerchantMetrics } from '../api/types';
 import { Icon, Notice, Panel, money } from '../components/ui';
+import { useCountUp } from '../components/useCountUp';
 
 export function Merchant() {
   const session = useSession();
@@ -88,14 +89,16 @@ export function Merchant() {
       ) : (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
-            <Headline label="AI GMV" value={money(m.ai_gmv)} note="paid through the agent" tone="var(--ok)" />
-            <Headline label="AI orders" value={String(m.ai_orders)} note="carts proposed" />
-            <Headline label="Completed" value={String(m.successful_purchases)} note="proposals that became sales" />
+            <Headline label="AI GMV" value={m.ai_gmv} format={money} note="paid through the agent" tone="var(--ok)" delay={0} />
+            <Headline label="AI orders" value={m.ai_orders} note="carts proposed" delay={70} />
+            <Headline label="Completed" value={m.successful_purchases} note="proposals that became sales" delay={140} />
             <Headline
               label="Revenue recovered"
-              value={money(m.recovered_revenue)}
+              value={m.recovered_revenue}
+              format={money}
               note={`${m.recovered_orders} sale${m.recovered_orders === 1 ? '' : 's'} saved by a substitution`}
-              tone="var(--brand)"
+              tone="var(--stamp)"
+              delay={210}
             />
           </div>
 
@@ -143,11 +146,31 @@ export function Merchant() {
   );
 }
 
-function Headline({ label, value, note, tone }: { label: string; value: string; note: string; tone?: string }) {
+function Headline({
+  label,
+  value,
+  note,
+  tone,
+  format,
+  delay,
+}: {
+  label: string;
+  value: number;
+  note: string;
+  tone?: string;
+  format?: (value: number) => string;
+  delay: number;
+}) {
+  const counted = useCountUp(value);
+  const shown = format ? format(counted) : Math.round(counted).toLocaleString('en-IN');
+
   return (
     <div
+      className="rise sheet"
       style={{
+        animationDelay: `${delay}ms`,
         border: '1px solid var(--line)',
+        borderTop: `2px solid ${tone ?? 'var(--ink)'}`,
         borderRadius: 'var(--radius)',
         background: 'var(--panel)',
         boxShadow: 'var(--lift)',
@@ -158,8 +181,17 @@ function Headline({ label, value, note, tone }: { label: string; value: string; 
       }}
     >
       <span className="label">{label}</span>
-      <span style={{ fontFamily: 'var(--display)', fontSize: 30, fontWeight: 800, letterSpacing: '-0.035em', color: tone ?? 'var(--ink)' }}>
-        {value}
+      <span
+        className="wide"
+        style={{
+          fontSize: 30,
+          fontWeight: 700,
+          letterSpacing: '-0.02em',
+          color: tone ?? 'var(--ink)',
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        {shown}
       </span>
       <span style={{ fontSize: 11.5, color: 'var(--ink-faint)' }}>{note}</span>
     </div>
@@ -188,7 +220,7 @@ function pill(background: string, color: string, border?: string): React.CSSProp
   return {
     height: 36,
     padding: '0 16px',
-    borderRadius: 'var(--radius-pill)',
+    borderRadius: 'var(--radius-sm)',
     background,
     color,
     border: `1px solid ${border ?? background}`,

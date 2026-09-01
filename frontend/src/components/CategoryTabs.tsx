@@ -27,7 +27,7 @@ export function CategoryTabs({ categories, mandates, selected, onSelect }: Props
               gap: 8,
               height: 36,
               padding: '0 16px',
-              borderRadius: 'var(--radius-pill)',
+              borderRadius: 'var(--radius-sm)',
               background: active ? 'var(--ink)' : 'var(--panel)',
               border: `1px solid ${active ? 'var(--ink)' : 'var(--line)'}`,
               color: active ? '#fff' : 'var(--ink-dim)',
@@ -42,7 +42,6 @@ export function CategoryTabs({ categories, mandates, selected, onSelect }: Props
               style={{
                 width: 6,
                 height: 6,
-                borderRadius: '50%',
                 background: hasMandate ? (active ? '#5fd6a4' : 'var(--ok)') : 'var(--ink-ghost)',
                 flexShrink: 0,
               }}
