@@ -13,4 +13,6 @@ public interface RestockListRepository extends JpaRepository<RestockList, Long> 
     Optional<RestockList> findByUserIdAndCatalogIdAndConsumedAtIsNull(Long userId, Long catalogId);
 
     Optional<RestockList> findByIdAndUserId(Long id, Long userId);
+
+    void deleteByUserId(Long userId);
 }

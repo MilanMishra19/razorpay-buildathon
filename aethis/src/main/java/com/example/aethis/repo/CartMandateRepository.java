@@ -16,4 +16,6 @@ public interface CartMandateRepository extends JpaRepository<CartMandate, Long> 
     List<CartMandate> findByUserIdOrderByIdDesc(Long userId);
 
     List<CartMandate> findByUserIdAndStatusOrderByIdDesc(Long userId, CartStatus status);
+
+    void deleteByUserId(Long userId);
 }

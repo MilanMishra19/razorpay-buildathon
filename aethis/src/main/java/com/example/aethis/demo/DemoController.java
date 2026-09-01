@@ -1,0 +1,43 @@
+package com.example.aethis.demo;
+
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.Map;
+
+@RestController
+@RequestMapping("/demo")
+@ConditionalOnProperty(name = "aethis.demo-tools", havingValue = "true", matchIfMissing = true)
+public class DemoController {
+
+    private final DemoService demoService;
+
+    public DemoController(DemoService demoService) {
+        this.demoService = demoService;
+    }
+
+    @GetMapping("/status")
+    public Map<String, Object> status() {
+        return Map.of("enabled", true);
+    }
+
+    @PostMapping("/reset")
+    public Map<String, Object> reset(@AuthenticationPrincipal Long userId) {
+        demoService.reset(userId);
+        return Map.of("reset", true);
+    }
+
+    @PostMapping("/tamper")
+    public Map<String, Object> tamper(@AuthenticationPrincipal Long userId) {
+        return Map.of("tampered_row_id", demoService.tamper(userId));
+    }
+
+    @PostMapping("/restore")
+    public Map<String, Object> restore(@AuthenticationPrincipal Long userId) {
+        return Map.of("restored_rows", demoService.restore(userId));
+    }
+}

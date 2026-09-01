@@ -12,4 +12,6 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, Long> {
     Optional<AgentRun> findByIdAndUserId(Long id, Long userId);
 
     List<AgentRun> findByUserIdOrderByIdDesc(Long userId, Limit limit);
+
+    void deleteByUserId(Long userId);
 }

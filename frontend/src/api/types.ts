@@ -57,6 +57,7 @@ export interface CartMandate {
 }
 
 export interface AuditEntry {
+  id: number;
   type: AuditType;
   event: AuditEvent;
   reason: string | null;

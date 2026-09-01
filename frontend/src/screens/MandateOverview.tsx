@@ -21,6 +21,7 @@ export function MandateOverview() {
   const audit = useResource<AuditEntry[]>((token) => api.checkout('/audit-log', token), []);
   const chain = useResource<ChainVerification>((token) => api.checkout('/audit-log/verify', token), []);
   const restock = useResource<RestockEntry[]>((token) => api.checkout('/restock-list', token), []);
+  const demo = useResource<{ enabled: boolean }>((token) => api.checkout('/demo/status', token), []);
 
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState<AgentRunResult | null>(null);
@@ -75,6 +76,18 @@ export function MandateOverview() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
+            {demo.data?.enabled && (
+              <Button
+                variant="ghost"
+                onClick={async () => {
+                  await api.checkout('/demo/reset', session.token, post({}));
+                  refreshAll();
+                  setRunResult(null);
+                }}
+              >
+                RESET DEMO
+              </Button>
+            )}
             <Button variant="ghost" onClick={() => revoke(m.id)}>
               REVOKE
             </Button>

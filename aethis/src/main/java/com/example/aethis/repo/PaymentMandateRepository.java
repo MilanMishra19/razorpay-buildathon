@@ -23,4 +23,6 @@ public interface PaymentMandateRepository extends JpaRepository<PaymentMandate, 
               and p.paymentStatus = com.example.aethis.model.PaymentStatus.PAID
             """)
     BigDecimal totalPaidForMandate(Long intentMandateId);
+
+    void deleteByUserId(Long userId);
 }

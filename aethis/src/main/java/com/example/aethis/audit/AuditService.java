@@ -50,6 +50,7 @@ public class AuditService {
     public List<AuditEntryResponse> history(Long userId) {
         return repository.findByUserIdOrderByIdAsc(userId).stream()
                 .map(row -> new AuditEntryResponse(
+                        row.getId(),
                         row.getType(),
                         row.getEvent(),
                         row.getReason(),

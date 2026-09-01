@@ -23,6 +23,7 @@ A user issues an **intent mandate** ("keep milk, bread, eggs stocked; ₹X per o
 | [`aethis/backend_api_endpoints.md`](aethis/backend_api_endpoints.md) | REST contract for the checkout API |
 | [`ai/ai_agent_design.md`](ai/ai_agent_design.md) | The single-LLM-call design and the prompt-injection defenses |
 | [`frontend/frontend_screens.md`](frontend/frontend_screens.md) | Screens and their data sources |
+| [`DEMO.md`](DEMO.md) | The six-minute walkthrough, beat by beat |
 
 ## Running (target)
 

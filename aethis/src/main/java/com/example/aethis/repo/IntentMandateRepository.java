@@ -18,4 +18,6 @@ public interface IntentMandateRepository extends JpaRepository<IntentMandate, Lo
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select m from IntentMandate m where m.id = :id and m.userId = :userId")
     Optional<IntentMandate> findByIdAndUserIdForUpdate(Long id, Long userId);
+
+    void deleteByUserId(Long userId);
 }

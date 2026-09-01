@@ -159,7 +159,7 @@ One run's prompt, raw model response, heuristic flags, and resulting cart — po
 ### `GET /audit-log`
 Get the full audit trail for the authenticated user — powers the dashboard timeline. `user_id` from the token.
 
-**Response:** list of `{ type, event, reason, summary, timestamp }` — `summary` is a short human-readable line about the referenced record (e.g. "Cart of ₹450 for milk, bread, eggs") so the frontend doesn't need extra calls to explain each row.
+**Response:** list of `{ id, type, event, reason, summary, timestamp }` — `summary` is a short human-readable line about the referenced record (e.g. "Cart of ₹450 for milk, bread, eggs") so the frontend doesn't need extra calls to explain each row. `id` is the audit row's own id, which is what `/audit-log/verify` reports as `broken_at_id`.
 
 ### `GET /audit-log/verify`
 Recomputes the hash chain end to end and confirms nothing has been tampered with. Intended to be a real, callable, demoable action — not just internal logic.
@@ -171,6 +171,26 @@ Recomputes the hash chain end to end and confirms nothing has been tampered with
   "broken_at_id": null | "..."
 }
 ```
+
+---
+
+## Demo tools
+
+Present only while `aethis.demo-tools` is `true` (the default; set `DEMO_TOOLS=false` to remove
+them). These exist to make the pitch reproducible and to prove the audit chain actually detects
+tampering. They can delete history and corrupt the ledger, so they do not belong outside a demo.
+
+### `POST /demo/reset`
+Wipes the authenticated user's mandates, carts, payments, restock queue, agent runs and audit rows. Leaves the account and the catalog alone.
+
+### `POST /demo/tamper`
+Edits a stored `audit_log.reason` for this user directly, without rewriting any hash — exactly what an attacker with database access would do. **Response:** `{ tampered_row_id }`. A following `GET /audit-log/verify` returns `is_valid: false` with that row as `broken_at_id`.
+
+### `POST /demo/restore`
+Undoes every tamper for this user, returning the chain to valid. **Response:** `{ restored_rows }`.
+
+### `GET /demo/status`
+`{ "enabled": true }` — the frontend uses this to decide whether to render the demo controls.
 
 ---
 

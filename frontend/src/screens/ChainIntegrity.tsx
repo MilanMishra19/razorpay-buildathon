@@ -1,20 +1,40 @@
 import { useState } from 'react';
-import { api } from '../api/client';
+import { api, post } from '../api/client';
 import { useResource } from '../api/useResource';
 import { useSession } from '../auth/AuthContext';
 import type { AuditEntry, ChainVerification } from '../api/types';
-import { Icon, Panel, clockTime, eventColor } from '../components/ui';
+import { Icon, Notice, Panel, clockTime, eventColor } from '../components/ui';
 
 type Phase = 'idle' | 'running' | 'valid' | 'broken';
 
 export function ChainIntegrity() {
   const session = useSession();
   const audit = useResource<AuditEntry[]>((token) => api.checkout('/audit-log', token), []);
+  const demo = useResource<{ enabled: boolean }>((token) => api.checkout('/demo/status', token), []);
   const [phase, setPhase] = useState<Phase>('idle');
   const [checked, setChecked] = useState(0);
   const [result, setResult] = useState<ChainVerification | null>(null);
+  const [demoNote, setDemoNote] = useState<string | null>(null);
 
   const rows = audit.data ?? [];
+
+  async function runDemo(action: 'tamper' | 'restore') {
+    setDemoNote(null);
+    try {
+      const body = await api.checkout<Record<string, number>>(`/demo/${action}`, session.token, post({}));
+      setPhase('idle');
+      setChecked(0);
+      setResult(null);
+      await audit.reload();
+      setDemoNote(
+        action === 'tamper'
+          ? `Edited the stored reason on audit row ${body.tampered_row_id}. Verify again.`
+          : `Restored ${body.restored_rows} row(s). Verify again.`,
+      );
+    } catch (error) {
+      setDemoNote((error as Error).message);
+    }
+  }
 
   async function verify() {
     setPhase('running');
@@ -22,9 +42,10 @@ export function ChainIntegrity() {
     setResult(null);
 
     const verification = await api.checkout<ChainVerification>('/audit-log/verify', session.token);
+    const brokenIndex = rows.findIndex((row) => row.id === verification.broken_at_id);
+    const stopAt = verification.is_valid || brokenIndex < 0 ? rows.length : brokenIndex + 1;
 
-    for (let i = 1; i <= rows.length; i += 1) {
-      if (!verification.is_valid && i > rows.length) break;
+    for (let i = 1; i <= stopAt; i += 1) {
       await new Promise((resolve) => setTimeout(resolve, 90));
       setChecked(i);
     }
@@ -58,7 +79,7 @@ export function ChainIntegrity() {
     broken: {
       label: 'CHAIN BROKEN',
       color: 'var(--bad)',
-      blurb: `Row ${result?.broken_at_id ?? '?'} no longer matches the hash the next row recorded. Something edited the ledger.`,
+      blurb: 'A stored row no longer matches the hash recorded for it. Something edited the ledger.',
       button: 'VERIFY AGAIN',
       tone: 'bad' as const,
     },
@@ -75,8 +96,8 @@ export function ChainIntegrity() {
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           {rows.map((entry, index) => {
             const n = index + 1;
-            const isBad = phase === 'broken' && result?.broken_at_id === n;
-            const isOk = !isBad && phase !== 'idle' && checked >= n && !(phase === 'broken' && n > (result?.broken_at_id ?? 0));
+            const isBad = phase === 'broken' && result?.broken_at_id === entry.id;
+            const isOk = !isBad && phase !== 'idle' && checked >= n && !(phase === 'broken' && checked < n);
             const border = isBad ? 'var(--bad-line)' : isOk ? 'var(--ok-line)' : 'var(--line)';
             const background = isBad ? 'var(--bad-bg)' : isOk ? 'var(--ok-bg)' : 'var(--panel-sunken)';
 
@@ -151,7 +172,7 @@ export function ChainIntegrity() {
             <Row label="algorithm" value="SHA-256" />
             <Row
               label="broken at"
-              value={phase === 'broken' ? `row ${result?.broken_at_id}` : phase === 'valid' ? 'none' : '—'}
+              value={phase === 'broken' ? `audit row ${result?.broken_at_id}` : phase === 'valid' ? 'none' : '—'}
               tone={phase === 'broken' ? 'var(--bad)' : phase === 'valid' ? 'var(--ok)' : 'var(--ink-faint)'}
             />
           </div>
@@ -161,6 +182,34 @@ export function ChainIntegrity() {
           Each row hashes its own contents together with the previous row&rsquo;s hash. Change any stored row and every
           hash after it stops matching &mdash; so tampering cannot be hidden, only detected.
         </div>
+
+        {demo.data?.enabled && (
+          <Panel title="PROVE IT">
+            <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: 'var(--ink-dim)' }}>
+                Edit a stored row behind the app&rsquo;s back, then verify again. The chain has no idea it happened
+                &mdash; it just stops adding up.
+              </p>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  onClick={() => runDemo('tamper')}
+                  className="mono"
+                  style={{ flexGrow: 1, height: 38, background: 'transparent', border: '1px solid var(--bad-line)', color: 'var(--bad)', fontSize: 10, letterSpacing: '0.14em' }}
+                >
+                  TAMPER
+                </button>
+                <button
+                  onClick={() => runDemo('restore')}
+                  className="mono"
+                  style={{ flexGrow: 1, height: 38, background: 'transparent', border: '1px solid var(--line-hot)', color: 'var(--ink-dim)', fontSize: 10, letterSpacing: '0.14em' }}
+                >
+                  RESTORE
+                </button>
+              </div>
+              {demoNote && <Notice tone={demoNote.startsWith('Edited') ? 'bad' : 'ok'}>{demoNote}</Notice>}
+            </div>
+          </Panel>
+        )}
       </div>
     </div>
   );

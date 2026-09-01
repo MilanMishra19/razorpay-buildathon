@@ -6,6 +6,7 @@ import com.example.aethis.model.AuditType;
 import java.time.Instant;
 
 public record AuditEntryResponse(
+        Long id,
         AuditType type,
         AuditEvent event,
         String reason,
