@@ -6,11 +6,12 @@ import type { CartMandate } from '../api/types';
 import { Icon, Pip } from './ui';
 
 const NAV = [
-  { to: '/mandate', label: 'Mandate' },
-  { to: '/approvals', label: 'Approvals' },
-  { to: '/timeline', label: 'Timeline' },
-  { to: '/chain', label: 'Chain' },
+  { to: '/overview', label: 'Overview' },
+  { to: '/buyer', label: 'AI Buyer' },
+  { to: '/transactions', label: 'Transactions' },
+  { to: '/merchant', label: 'Merchant' },
   { to: '/catalog', label: 'Catalog' },
+  { to: '/audit', label: 'Audit' },
 ];
 
 export function Shell() {
@@ -81,7 +82,7 @@ export function Shell() {
               })}
             >
               {item.label}
-              {item.to === '/approvals' && pendingCount > 0 && (
+              {item.to === '/transactions' && pendingCount > 0 && (
                 <span
                   className="mono"
                   style={{

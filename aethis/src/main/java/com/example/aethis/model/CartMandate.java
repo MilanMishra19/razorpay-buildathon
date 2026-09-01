@@ -51,8 +51,18 @@ public class CartMandate {
     @Column(name = "rejection_reason")
     private String rejectionReason;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "policy_decision")
+    private PolicyDecision policyDecision;
+
     @Column(name = "cart_hash", nullable = false)
     private String cartHash;
+
+    @Column(name = "is_demo", nullable = false)
+    private boolean demo = false;
+
+    @Column(name = "replay_count", nullable = false)
+    private int replayCount = 0;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

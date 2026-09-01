@@ -23,6 +23,22 @@ public final class Snapshots {
         return snapshot;
     }
 
+    private static List<Map<String, Object>> checksOf(CartMandate cart) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        if (cart.getPolicyDecision() == null) {
+            return rows;
+        }
+        for (PolicyCheck check : cart.getPolicyDecision().checks()) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("name", check.name());
+            row.put("outcome", check.outcome().name());
+            row.put("limit", check.limit() == null ? null : check.limit().toPlainString());
+            row.put("actual", check.actual() == null ? null : check.actual().toPlainString());
+            rows.add(row);
+        }
+        return rows;
+    }
+
     public static Map<String, Object> of(CartMandate cart) {
         List<Map<String, Object>> items = new ArrayList<>();
         for (CartItem item : cart.getCartItems()) {
@@ -43,6 +59,7 @@ public final class Snapshots {
         snapshot.put("totalAmount", cart.getTotalAmount().toPlainString());
         snapshot.put("status", cart.getStatus().name());
         snapshot.put("rejectionReason", cart.getRejectionReason());
+        snapshot.put("policyChecks", checksOf(cart));
         return snapshot;
     }
 

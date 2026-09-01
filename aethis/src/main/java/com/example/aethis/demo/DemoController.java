@@ -15,9 +15,11 @@ import java.util.Map;
 public class DemoController {
 
     private final DemoService demoService;
+    private final MerchantHistorySeeder seeder;
 
-    public DemoController(DemoService demoService) {
+    public DemoController(DemoService demoService, MerchantHistorySeeder seeder) {
         this.demoService = demoService;
+        this.seeder = seeder;
     }
 
     @GetMapping("/status")
@@ -34,6 +36,17 @@ public class DemoController {
     @PostMapping("/tamper")
     public Map<String, Object> tamper(@AuthenticationPrincipal Long userId) {
         return Map.of("tampered_row_id", demoService.tamper(userId));
+    }
+
+    @PostMapping("/seed-history")
+    public Map<String, Object> seedHistory() {
+        MerchantHistorySeeder.SeedResult result = seeder.seed();
+        return Map.of("carts", result.carts(), "payments", result.payments(), "gmv", result.gmv());
+    }
+
+    @PostMapping("/clear-history")
+    public Map<String, Object> clearHistory() {
+        return Map.of("removed", seeder.clear());
     }
 
     @PostMapping("/restore")

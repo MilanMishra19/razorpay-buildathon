@@ -1,78 +1,91 @@
 # React Frontend — Screens & Design
 
-App: Merchant/user dashboard for the agentic commerce buildathon project
-Auth: simple email/password login, JWT stored in React in-memory state (no localStorage/cookies for now)
+Six screens, ordered left-to-right in the nav to match the demo: **Overview → AI Buyer →
+Transactions → Merchant → Catalog → Audit**. Design notes live in [`README.md`](README.md).
 
----
+Everything reads the checkout API except the chat panel and autopilot, which talk to the agent.
+State is deliberately plain: `useResource` polls an endpoint and exposes
+`{ data, loading, error, reload }`. The server is the truth; every screen re-reads it.
 
-## 0. Login / Register
+## 0 · Login
 
-Entry point. Calls `POST /auth/login` or `POST /auth/register`. On success, stores the returned JWT in memory (app-level state, not persisted across refresh — acceptable tradeoff for a demo where login timing is controlled).
+Email/password, register or sign in. JWT is held in memory only — a refresh signs you out, which is
+the honest behaviour for a token with no refresh flow.
 
-All screens below are protected routes — no valid token in memory → redirect here.
+## 1 · Overview
 
----
+The mandate you are operating under and what it has cost. Budget meter against the monthly cap with
+the escalation threshold marked, per-order cap, remaining budget, expiry. Below it: where the money
+went, orders awaiting Razorpay checkout, and recent audit activity.
 
-## 1. Mandate Overview (home screen)
+`GET /intent-mandates/active`, `/cart-mandates`, `/payment-mandates/awaiting-checkout`, `/audit-log`
 
-The first thing a viewer sees. Communicates "here's the rule the agent is bound by" at a glance.
+## 2 · AI Buyer
 
-**Shows:**
-- Active intent mandate: category, per-order cap, monthly cap, escalation threshold
-- Spent-so-far this cycle / remaining budget (derived from paid payment mandates only, per the cumulative spend rule)
-- Days until mandate expiry
-- Option to issue/renew a mandate if none active, or revoke the current one
+The conversational surface. You state what to keep stocked and what you will spend; the agent drafts
+a mandate and hands it back with an **ISSUE THIS MANDATE** button. It cannot issue one itself — that
+click is the whole point of the screen.
 
-**Data source:** `GET /intent-mandates/active`
+Beside it: the **autopilot** switch (off by default, 60s/2m/5m interval, live countdown to the next
+cycle), active mandates, and the history of autonomous cycles with what each one decided.
 
----
+`POST /chat`, `POST /chat/confirm`, `GET|POST /agent/autopilot`, `GET /intent-mandates/active`
 
-## 2. Pending Approvals Inbox
+## 3 · Transactions
 
-The only screen with real user *actions*, not just display. This is where the escalation guardrail becomes visible and interactive in a demo.
+Every proposal and what policy did with it, filtered by *Pending approval* / *All* / *Blocked*.
+Expanding one reveals the signature component:
 
-**Shows:** list of cart mandates with `status: pending_approval` — items, total amount, reason ("near monthly cap — requires approval"), with Approve / Decline buttons.
+```text
+┌──────── AI DECISION ────────┐    ┌──────── POLICY DECISION ────────┐
+│ SWAP  All Out Refill  ×1    │ →  │ ✓ Category                      │
+│ Why: Good Knight was        │    │ ✓ Stock                         │
+│ unavailable — closest       │    │ ✓ Per-order cap    ₹75 / ₹600   │
+│ in-stock match              │    │ ✓ Monthly cap      ₹75 / ₹2000  │
+│                             │    │ ✓ Escalation threshold          │
+│ PROPOSAL ONLY ·             │    │ ⚠ Substitution                  │
+│ NO SPENDING AUTHORITY       │    │ PENDING APPROVAL         ₹75.00 │
+└─────────────────────────────┘    └─────────────────────────────────┘
+```
 
-**Behavior:** auto-refreshes via polling (~every 3–5s) against `GET /cart-mandates?status=pending_approval` (user derived from the token), so a new pending cart appears without a manual refresh.
+A blocked cart additionally shows the arithmetic — allowed, proposed, excess. Pending carts get the
+budget meter with the cart's contribution and **APPROVE & PAY** / **DECLINE**. Each cart carries its
+own timeline, filtered out of the same audit log the chain verifies, so a timeline can never claim
+something the ledger does not.
 
-**Actions:** `POST /cart-mandates/{id}/resolve` with `decision: approve | decline`. On **approve**, follow up with `POST /payment-mandates` for that cart so the approved purchase actually goes through (a declined cart stops there).
+`GET /cart-mandates`, `POST /cart-mandates/{id}/resolve`, `POST /payment-mandates`, `GET /audit-log`
 
----
+## 4 · Merchant
 
-## 3. Transaction Timeline
+What the AI channel is worth: GMV, orders, completed sales, revenue recovered by substitution, and
+below that what policy stopped and what the agent did. Seeded history is loadable for the demo and
+the page badges itself when any of the figures include it.
 
-The evidence screen — human-readable audit trail, used to demonstrate that guardrails actually fired and why.
+`GET /merchant/metrics`, `POST /demo/seed-history`, `POST /demo/clear-history`
 
-**Shows:** chronological list of audit events, each rendered from the `summary` field (e.g. "Cart of ₹450 for milk, bread, eggs — approved" / "Cart of ₹1,200 — rejected: exceeds monthly cap").
+## 5 · Catalog
 
-**Data source:** `GET /audit-log`
+The product grid the agent browses. `+ ADD` queues an item for restock. A quantity stepper and
+**PROPOSE** send a cart the agent never would, which is how a rejection gets demonstrated — the
+guardrail re-checks every caller.
 
----
+Beside it, the prompt-injection evidence panel, in the dark register reserved for raw machine output:
+the poisoned listing in full, what the model was actually shown, what it returned, and the verdict
+strip **DEMANDED 50 · PURCHASED 1**.
 
-## 4. Chain Integrity Check
+`GET /catalog`, `POST /restock-list`, `POST /cart-mandates`, `GET /agent-runs?limit=1`
 
-Small, focused screen — a single dramatic action for the pitch: prove the audit trail hasn't been tampered with.
+## 6 · Audit
 
-**Shows:** a button that calls `GET /audit-log/verify`, then displays a clear pass/fail result (and which row broke the chain, if any).
+The ledger, and the proof it has not been edited. **VERIFY CHAIN** walks it row by row, sealing each
+one. **TAMPER** edits a stored row behind the application's back; verifying again stops dead and
+names the row. **RESTORE** puts it back.
 
----
+`GET /audit-log`, `GET /audit-log/verify`, `POST /demo/tamper`, `POST /demo/restore`
 
-## 5. Catalog View (recommended — two demos live here)
+## Conventions
 
-Shows what the agent is able to browse — including the seeded poisoned entry used for the prompt-injection resistance demo.
-
-**Actions:**
-- *Mark as low* per item → `POST /restock-list` (adds the item to the agent's shopping queue)
-- *Run agent now* → `POST /agent/run` on the FastAPI agent (runs one shopping cycle)
-
-**Prompt-injection comparison:** after a cycle, pull `GET /agent-runs?limit=1` and render the poisoned entry's description beside the agent's actual `parsed_cart` — showing the embedded instruction had no effect.
-
-**Data source:** `GET /catalog?category=groceries`, `GET /agent-runs?limit=1`
-
----
-
-## Open implementation notes (not decisions, just carried context)
-
-- Every API call after login attaches the in-memory JWT; a 401 response should redirect to login.
-- Pending Approvals polling should stop/pause if the tab isn't visible, to avoid unnecessary calls — not essential for a demo, but cheap to add.
-- If time allows post-MVP: upgrade JWT storage to cookie/localStorage so sessions survive a refresh.
+- Wire format is snake_case; TypeScript interfaces in `src/api/types.ts` mirror it exactly.
+- A 401 anywhere clears the session and returns to login.
+- Degradation is shown, never hidden: when the model was unavailable and a cycle ran on the offline
+  decider, the run summary says so.

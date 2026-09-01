@@ -3,6 +3,7 @@ package com.example.aethis.cart.dto;
 import com.example.aethis.model.CartItem;
 import com.example.aethis.model.CartMandate;
 import com.example.aethis.model.CartStatus;
+import com.example.aethis.model.PolicyDecision;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -16,6 +17,7 @@ public record CartMandateResponse(
         List<CartItem> cartItems,
         BigDecimal totalAmount,
         String cartHash,
+        PolicyDecision policyDecision,
         Instant createdAt) {
 
     public static CartMandateResponse of(CartMandate cart) {
@@ -27,6 +29,7 @@ public record CartMandateResponse(
                 cart.getCartItems(),
                 cart.getTotalAmount(),
                 cart.getCartHash(),
+                cart.getPolicyDecision(),
                 cart.getCreatedAt());
     }
 }

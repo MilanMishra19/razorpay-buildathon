@@ -15,6 +15,9 @@ import com.example.aethis.model.CartMandate;
 import com.example.aethis.model.CartStatus;
 import com.example.aethis.model.IntentMandate;
 import com.example.aethis.model.MandateStatus;
+import com.example.aethis.model.PolicyCheck;
+import com.example.aethis.model.PolicyDecision;
+import com.example.aethis.model.PolicyOutcome;
 import com.example.aethis.model.Snapshots;
 import com.example.aethis.model.StockStatus;
 import com.example.aethis.repo.CartMandateRepository;
@@ -28,6 +31,7 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +47,21 @@ public class CartMandateService {
     private static final String REASON_NEAR_CAP = "near monthly cap — requires approval";
     private static final String REASON_SUBSTITUTION = "contains a substitution — requires approval";
     private static final String REASON_DECLINED = "Declined by user";
+
+    private static final String CHECK_CATEGORY = "Category";
+    private static final String CHECK_STOCK = "Stock";
+    private static final String CHECK_PER_ORDER = "Per-order cap";
+    private static final String CHECK_MONTHLY = "Monthly cap";
+    private static final String CHECK_ESCALATION = "Escalation threshold";
+    private static final String CHECK_SUBSTITUTION = "Substitution";
+
+    private static final Map<String, String> REASONS = Map.of(
+            CHECK_CATEGORY, REASON_CATEGORY,
+            CHECK_STOCK, REASON_OUT_OF_STOCK,
+            CHECK_PER_ORDER, REASON_PER_ORDER_CAP,
+            CHECK_MONTHLY, REASON_MONTHLY_CAP,
+            CHECK_ESCALATION, REASON_NEAR_CAP,
+            CHECK_SUBSTITUTION, REASON_SUBSTITUTION);
 
     private final CartMandateRepository carts;
     private final IntentMandateRepository mandates;
@@ -65,7 +84,9 @@ public class CartMandateService {
         if (StringUtils.hasText(request.idempotencyKey())) {
             Optional<CartMandate> replay = carts.findByIdempotencyKey(request.idempotencyKey());
             if (replay.isPresent()) {
-                return decisionFor(replay.get());
+                CartMandate existing = replay.get();
+                existing.setReplayCount(existing.getReplayCount() + 1);
+                return decisionFor(existing);
             }
         }
 
@@ -103,6 +124,7 @@ public class CartMandateService {
         cart.setTotalAmount(total);
         cart.setStatus(verdict.status());
         cart.setRejectionReason(verdict.reason());
+        cart.setPolicyDecision(verdict.decision());
         cart.setCartHash("");
         carts.saveAndFlush(cart);
         cart.setCartHash(Hashing.contentHash(Snapshots.of(cart)));
@@ -112,7 +134,7 @@ public class CartMandateService {
 
         return new CartDecisionResponse(verdict.status(), cart.getId(), verdict.reason(), total,
                 mandate.getMonthlyCap().subtract(alreadyPaid),
-                verdict.status() == CartStatus.PENDING_APPROVAL);
+                verdict.status() == CartStatus.PENDING_APPROVAL, verdict.decision());
     }
 
     @Transactional
@@ -153,41 +175,83 @@ public class CartMandateService {
         return rows.stream().map(CartMandateResponse::of).toList();
     }
 
+    /**
+     * Runs every guardrail rather than stopping at the first failure, so the caller can be shown the
+     * whole reckoning instead of one word. The verdict still belongs to the first check that failed,
+     * which keeps the ordering meaningful: a cart that is both unaffordable and substituting is
+     * rejected for the money, not asked about the swap.
+     */
     private Verdict evaluate(IntentMandate mandate, Map<Long, Catalog> catalogById,
                              BigDecimal total, BigDecimal alreadyPaid, boolean substituting) {
-        boolean categoryMismatch = catalogById.values().stream()
-                .anyMatch(item -> !item.getCategory().equalsIgnoreCase(mandate.getCategory()));
-        if (categoryMismatch) {
-            return Verdict.rejected(REASON_CATEGORY);
-        }
+        List<PolicyCheck> checks = new ArrayList<>();
+        BigDecimal projectedSpend = alreadyPaid.add(total);
+        BigDecimal escalationFloor = Money.percentageOf(mandate.getMonthlyCap(),
+                mandate.getEscalationThresholdPct());
+
+        Optional<Catalog> foreign = catalogById.values().stream()
+                .filter(item -> !item.getCategory().equalsIgnoreCase(mandate.getCategory()))
+                .findFirst();
+        checks.add(foreign
+                .map(item -> PolicyCheck.failed(CHECK_CATEGORY,
+                        item.getName() + " is " + item.getCategory() + ", not " + mandate.getCategory(),
+                        null, null))
+                .orElseGet(() -> PolicyCheck.note(CHECK_CATEGORY,
+                        "every item is in " + mandate.getCategory())));
 
         Optional<Catalog> outOfStock = catalogById.values().stream()
                 .filter(item -> item.getStockStatus() == StockStatus.OUT_OF_STOCK)
                 .findFirst();
-        if (outOfStock.isPresent()) {
-            return Verdict.rejected(REASON_OUT_OF_STOCK + ": " + outOfStock.get().getName());
-        }
+        checks.add(outOfStock
+                .map(item -> PolicyCheck.failed(CHECK_STOCK, item.getName() + " is out of stock", null, null))
+                .orElseGet(() -> PolicyCheck.note(CHECK_STOCK, "every item is in stock")));
 
-        if (total.compareTo(mandate.getPerOrderCap()) > 0) {
-            return Verdict.rejected(REASON_PER_ORDER_CAP);
-        }
+        boolean overPerOrder = total.compareTo(mandate.getPerOrderCap()) > 0;
+        checks.add(new PolicyCheck(CHECK_PER_ORDER,
+                overPerOrder ? PolicyOutcome.FAIL : PolicyOutcome.PASS,
+                overPerOrder
+                        ? "over by " + Money.normalize(total.subtract(mandate.getPerOrderCap()))
+                        : "within the per-order cap",
+                mandate.getPerOrderCap(), total));
 
-        BigDecimal projectedSpend = alreadyPaid.add(total);
-        if (projectedSpend.compareTo(mandate.getMonthlyCap()) > 0) {
-            return Verdict.rejected(REASON_MONTHLY_CAP);
-        }
+        boolean overMonthly = projectedSpend.compareTo(mandate.getMonthlyCap()) > 0;
+        checks.add(new PolicyCheck(CHECK_MONTHLY,
+                overMonthly ? PolicyOutcome.FAIL : PolicyOutcome.PASS,
+                Money.normalize(alreadyPaid) + " already spent + " + Money.normalize(total)
+                        + " proposed = " + Money.normalize(projectedSpend),
+                mandate.getMonthlyCap(), projectedSpend));
 
-        BigDecimal escalationFloor = Money.percentageOf(mandate.getMonthlyCap(),
-                mandate.getEscalationThresholdPct());
-        if (projectedSpend.compareTo(escalationFloor) >= 0) {
-            return Verdict.pendingApproval(REASON_NEAR_CAP);
-        }
+        boolean nearCap = projectedSpend.compareTo(escalationFloor) >= 0;
+        checks.add(new PolicyCheck(CHECK_ESCALATION,
+                nearCap ? PolicyOutcome.ESCALATE : PolicyOutcome.PASS,
+                nearCap
+                        ? "crosses " + mandate.getEscalationThresholdPct() + "% of the monthly cap"
+                        : "below " + mandate.getEscalationThresholdPct() + "% of the monthly cap",
+                escalationFloor, projectedSpend));
 
-        if (substituting) {
-            return Verdict.pendingApproval(REASON_SUBSTITUTION);
-        }
+        checks.add(substituting
+                ? PolicyCheck.flagged(CHECK_SUBSTITUTION, "the agent is buying something you did not pick",
+                        null, null)
+                : PolicyCheck.note(CHECK_SUBSTITUTION, "no substitutions"));
 
-        return Verdict.approved();
+        return verdictFrom(checks, outOfStock);
+    }
+
+    private Verdict verdictFrom(List<PolicyCheck> checks, Optional<Catalog> outOfStock) {
+        for (PolicyCheck check : checks) {
+            if (check.outcome() == PolicyOutcome.FAIL) {
+                String reason = check.name().equals(CHECK_STOCK)
+                        ? REASON_OUT_OF_STOCK + ": " + outOfStock.map(Catalog::getName).orElse("")
+                        : REASONS.get(check.name());
+                return Verdict.rejected(reason, PolicyDecision.of(reason, checks));
+            }
+        }
+        for (PolicyCheck check : checks) {
+            if (check.outcome() == PolicyOutcome.ESCALATE) {
+                String reason = REASONS.get(check.name());
+                return Verdict.pendingApproval(reason, PolicyDecision.of(reason, checks));
+            }
+        }
+        return Verdict.approved(PolicyDecision.of(null, checks));
     }
 
     private Long validSubstitution(Long substitutesFor) {
@@ -220,21 +284,21 @@ public class CartMandateService {
                 .orElse(BigDecimal.ZERO);
         return new CartDecisionResponse(cart.getStatus(), cart.getId(), cart.getRejectionReason(),
                 cart.getTotalAmount(), monthlyCap.subtract(alreadyPaid),
-                cart.getStatus() == CartStatus.PENDING_APPROVAL);
+                cart.getStatus() == CartStatus.PENDING_APPROVAL, cart.getPolicyDecision());
     }
 
-    private record Verdict(CartStatus status, String reason, AuditEvent event) {
+    private record Verdict(CartStatus status, String reason, AuditEvent event, PolicyDecision decision) {
 
-        static Verdict approved() {
-            return new Verdict(CartStatus.APPROVED, null, AuditEvent.APPROVED);
+        static Verdict approved(PolicyDecision decision) {
+            return new Verdict(CartStatus.APPROVED, null, AuditEvent.APPROVED, decision);
         }
 
-        static Verdict rejected(String reason) {
-            return new Verdict(CartStatus.REJECTED, reason, AuditEvent.REJECTED);
+        static Verdict rejected(String reason, PolicyDecision decision) {
+            return new Verdict(CartStatus.REJECTED, reason, AuditEvent.REJECTED, decision);
         }
 
-        static Verdict pendingApproval(String reason) {
-            return new Verdict(CartStatus.PENDING_APPROVAL, reason, AuditEvent.AWAITING_APPROVAL);
+        static Verdict pendingApproval(String reason, PolicyDecision decision) {
+            return new Verdict(CartStatus.PENDING_APPROVAL, reason, AuditEvent.AWAITING_APPROVAL, decision);
         }
     }
 }

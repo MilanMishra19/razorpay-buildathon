@@ -3,8 +3,9 @@ import { AuthProvider, useAuth } from './auth/AuthContext';
 import { Shell } from './components/Shell';
 import { Login } from './screens/Login';
 import { MandateOverview } from './screens/MandateOverview';
-import { Approvals } from './screens/Approvals';
-import { Timeline } from './screens/Timeline';
+import { AIBuyer } from './screens/AIBuyer';
+import { Transactions } from './screens/Transactions';
+import { Merchant } from './screens/Merchant';
 import { ChainIntegrity } from './screens/ChainIntegrity';
 import { Catalog } from './screens/Catalog';
 
@@ -22,13 +23,14 @@ function Routed() {
   return (
     <Routes>
       <Route element={<Shell />}>
-        <Route path="/mandate" element={<MandateOverview />} />
-        <Route path="/approvals" element={<Approvals />} />
-        <Route path="/timeline" element={<Timeline />} />
-        <Route path="/chain" element={<ChainIntegrity />} />
+        <Route path="/overview" element={<MandateOverview />} />
+        <Route path="/buyer" element={<AIBuyer />} />
+        <Route path="/transactions" element={<Transactions />} />
+        <Route path="/merchant" element={<Merchant />} />
         <Route path="/catalog" element={<Catalog />} />
+        <Route path="/audit" element={<ChainIntegrity />} />
       </Route>
-      <Route path="*" element={<Navigate to="/mandate" replace />} />
+      <Route path="*" element={<Navigate to="/overview" replace />} />
     </Routes>
   );
 }

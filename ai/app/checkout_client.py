@@ -37,8 +37,9 @@ class CheckoutClient:
         response = await self._request("GET", "/intent-mandates/active", user_id)
         return [Mandate.model_validate(row) for row in response.json()]
 
-    async def catalog(self, user_id: int, category: str) -> list[CatalogItem]:
-        response = await self._request("GET", "/catalog", user_id, params={"category": category})
+    async def catalog(self, user_id: int, category: str | None = None) -> list[CatalogItem]:
+        params = {"category": category} if category else None
+        response = await self._request("GET", "/catalog", user_id, params=params)
         return [CatalogItem.model_validate(row) for row in response.json()]
 
     async def restock_list(self, user_id: int) -> list[RestockEntry]:
@@ -63,6 +64,23 @@ class CheckoutClient:
         response = await self._request(
             "POST", "/payment-mandates", user_id, json={"cart_mandate_id": cart_mandate_id}
         )
+        return response.json()
+
+    async def carts(self, user_id: int, status: str | None = None) -> list[dict]:
+        path = "/cart-mandates" + (f"?status={status}" if status else "")
+        response = await self._request("GET", path, user_id)
+        return response.json()
+
+    async def cart(self, user_id: int, cart_id: int) -> dict:
+        response = await self._request("GET", f"/cart-mandates/{cart_id}", user_id)
+        return response.json()
+
+    async def categories(self, user_id: int) -> list[str]:
+        response = await self._request("GET", "/catalog/categories", user_id)
+        return response.json()
+
+    async def issue_mandate(self, user_id: int, body: dict) -> dict:
+        response = await self._request("POST", "/intent-mandates", user_id, json=body)
         return response.json()
 
     async def record_run(self, user_id: int, payload: dict) -> int:

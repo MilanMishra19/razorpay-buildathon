@@ -62,6 +62,7 @@ export interface CartMandate {
   rejection_reason: string | null;
   cart_items: CartItem[];
   total_amount: number;
+  policy_decision: PolicyDecision | null;
   cart_hash: string;
   created_at: string;
 }
@@ -130,4 +131,72 @@ export interface AgentRunResult {
 export interface AgentRunReport {
   runs: AgentRunResult[];
   skipped: Record<string, string>;
+}
+
+export type PolicyOutcome = 'PASS' | 'ESCALATE' | 'FAIL';
+
+export interface PolicyCheck {
+  name: string;
+  outcome: PolicyOutcome;
+  detail: string | null;
+  limit: number | null;
+  actual: number | null;
+}
+
+export interface PolicyDecision {
+  reason: string | null;
+  checks: PolicyCheck[];
+}
+
+export interface MerchantMetrics {
+  ai_gmv: number;
+  ai_orders: number;
+  successful_purchases: number;
+  recovered_revenue: number;
+  recovered_orders: number;
+  rejected_spend: number;
+  policy_blocks: number;
+  human_approvals: number;
+  substitutions: number;
+  agent_cycles: number;
+  average_order_value: number;
+  failed_payments: number;
+  duplicates_prevented: number;
+  demo_rows: number;
+}
+
+export interface MandateProposal {
+  category: string;
+  standing_instruction: string;
+  per_order_cap: number;
+  monthly_cap: number;
+  escalation_threshold_pct: number;
+}
+
+export interface ChatReply {
+  reply: string;
+  intent: string;
+  proposal: MandateProposal | null;
+  run: AgentRunReport | null;
+  cart_mandate_id: number | null;
+  degraded: string | null;
+}
+
+export interface CycleRecord {
+  at: number;
+  category: string;
+  outcome: string;
+  reason: string | null;
+  items: number;
+}
+
+export interface AutopilotStatus {
+  enabled: boolean;
+  interval_seconds: number;
+  user_id: number | null;
+  last_run_at: number | null;
+  next_run_at: number | null;
+  runs: number;
+  last_error: string | null;
+  history: CycleRecord[];
 }

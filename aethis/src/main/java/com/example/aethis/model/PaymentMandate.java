@@ -53,6 +53,9 @@ public class PaymentMandate {
     @Column(name = "payment_hash", nullable = false)
     private String paymentHash;
 
+    @Column(name = "is_demo", nullable = false)
+    private boolean demo = false;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

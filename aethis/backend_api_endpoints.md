@@ -114,6 +114,12 @@ Get a single cart mandate's current status.
 ### `GET /cart-mandates?status={status}`
 Get cart mandate history for the authenticated user — powers the dashboard timeline and the Pending Approvals inbox. `user_id` comes from the token; optional `status` filter (e.g. `status=pending_approval`).
 
+A cart response also carries `policy_decision`: the ordered list of guardrail checks that produced
+the verdict, each with `name`, `outcome` (`PASS` / `ESCALATE` / `FAIL`), a human-readable `detail`,
+and the `limit` and `actual` it compared. Every check runs — the list is not truncated at the first
+failure — so a decision can be recomputed rather than believed. The verdict belongs to the first
+check that failed.
+
 ### `POST /cart-mandates/{id}/resolve`
 Resolve a cart sitting in `pending_approval`. The user explicitly approves or declines. Writes an `audit_log` entry (`event: approved_by_user` or `declined_by_user`).
 
@@ -189,6 +195,17 @@ Recomputes **the caller's** hash chain end to end and confirms nothing has been 
 
 ---
 
+## Merchant
+
+### `GET /merchant/metrics`
+
+Aggregates across every AI buyer, derived from carts, payments and agent runs at read time — there is
+no metrics table to drift. Returns `ai_gmv`, `ai_orders`, `successful_purchases`,
+`recovered_revenue`, `recovered_orders`, `rejected_spend`, `policy_blocks`, `human_approvals`,
+`substitutions`, `agent_cycles`, `average_order_value`, `failed_payments`, `duplicates_prevented`,
+and `demo_rows` — the count of seeded rows included above, so the dashboard can say how much of what
+it shows was earned.
+
 ## Demo tools
 
 Present only while `aethis.demo-tools` is `true` (the default; set `DEMO_TOOLS=false` to remove
@@ -203,6 +220,15 @@ Edits a stored `audit_log.reason` for this user directly, without rewriting any 
 
 ### `POST /demo/restore`
 Undoes every tamper for this user, returning the chain to valid. **Response:** `{ restored_rows }`.
+
+### `POST /demo/seed-history`
+
+Seeds ~30 days of merchant-analytics history under a synthetic buyer, flagged `is_demo`. Never
+appears in a real user's carts, approvals or audit chain. Returns `{carts, payments, gmv}`.
+
+### `POST /demo/clear-history`
+
+Removes every seeded row. Returns `{removed}`.
 
 ### `GET /demo/status`
 `{ "enabled": true }` — the frontend uses this to decide whether to render the demo controls.

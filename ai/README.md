@@ -95,3 +95,27 @@ sitting on the restock list, the model bought **one**.
 
 No API key needed — the decision is an injected dependency, so the suite drives the whole
 cycle with a scripted decider and a fake checkout client.
+
+## Conversation
+
+`POST /chat` is the conversational face of the agent, and it is deliberately narrow.
+
+The model gets exactly one job: read the message and return a structured intent — create a mandate,
+run a cycle, explain what is pending, explain the last cycle, or report spend. It never writes the
+answer. Everything the user reads afterwards is assembled from what the checkout API actually
+returned, so a sentence about money cannot disagree with the ledger. When the reply explains a policy
+decision, it reads the checks the guardrail recorded rather than reasoning about them again.
+
+Creating a mandate is a two-step: `/chat` returns a **proposal**, and `/chat/confirm` is the only
+path that issues it. The conversation can draft spending authority; it cannot grant it.
+
+With `LLM_PROVIDER=offline` — or when the hosted provider is unreachable — intent falls back to
+keyword matching, so the panel still understands the common asks. It reads intent only, and never
+fills in an amount the user did not say.
+
+## Autopilot
+
+`GET|POST /agent/autopilot` toggles a background task that runs `run_all` on an interval. It is off
+until asked, because an agent that starts spending the moment the process boots is the thing this
+project argues against. It decides nothing of its own: the cycle it runs is the cycle the manual
+endpoint runs, with the same guardrails, escalations and audit writes.

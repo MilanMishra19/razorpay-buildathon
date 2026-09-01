@@ -83,6 +83,8 @@ class Decider(Protocol):
         instruction: str,
     ) -> Decision: ...
 
+    def classify(self, system: str, message: str, schema: dict) -> str: ...
+
 
 class MissingApiKey(RuntimeError):
     pass
@@ -118,6 +120,23 @@ class GeminiDecider:
 
         raw = self._generate(client, user_content, config)
         return Decision(parse_cart(raw), full_prompt(user_content), raw)
+
+    def classify(self, system: str, message: str, schema: dict) -> str:
+        if not self._api_key:
+            raise MissingApiKey("GOOGLE_API_KEY is not configured")
+
+        from google import genai
+        from google.genai import types
+
+        client = genai.Client(api_key=self._api_key)
+        config = types.GenerateContentConfig(
+            system_instruction=system,
+            response_mime_type="application/json",
+            response_schema=schema,
+            max_output_tokens=512,
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+        )
+        return self._generate(client, message, config)
 
     def _generate(self, client, user_content: str, config) -> str:
         last_error: Exception | None = None
@@ -176,6 +195,24 @@ class GroqDecider:
 
         raw = self._generate(payload)
         return Decision(parse_cart(raw), full_prompt(user_content), raw)
+
+    def classify(self, system: str, message: str, schema: dict) -> str:
+        if not self._api_key:
+            raise MissingApiKey("GROQ_API_KEY is not configured")
+
+        return self._generate({
+            "model": self._model,
+            "temperature": 0,
+            "max_completion_tokens": 512,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": message},
+            ],
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {"name": "intent", "strict": True, "schema": schema},
+            },
+        })
 
     def _generate(self, payload: dict) -> str:
         last_error: str | None = None
@@ -259,6 +296,34 @@ class OfflineDecider:
         prompt = full_prompt(build_user_content(instruction, mandate, entries, items))
         return Decision(lines, f"{prompt}\n\n[offline decider: no model was called]", raw)
 
+    def classify(self, system: str, message: str, schema: dict) -> str:
+        """
+        Keyword matching, so the chat panel still understands the common asks when no model is
+        reachable. It reads intent only — it never fills in an amount the user did not say.
+        """
+        text = message.lower()
+        if any(word in text for word in ("run", "shop now", "cycle now", "go buy")):
+            intent = "run_cycle"
+        elif any(word in text for word in ("approval", "pending", "waiting", "why do you need")):
+            intent = "explain_pending"
+        elif any(word in text for word in ("spent", "budget", "left", "remaining", "how much")):
+            intent = "spend_status"
+        elif any(word in text for word in ("last", "happened", "latest", "recent")):
+            intent = "explain_last"
+        elif any(word in text for word in ("keep", "stock", "mandate", "limit", "per order")):
+            intent = "create_mandate"
+        else:
+            intent = "unknown"
+
+        return json.dumps({
+            "intent": intent,
+            "category": None,
+            "instruction": None,
+            "per_order_cap": None,
+            "monthly_cap": None,
+            "escalation_threshold_pct": None,
+        })
+
     @staticmethod
     def _nearest_in_stock(missing, items, queued, chosen):
         candidates = [
@@ -295,6 +360,12 @@ class FallbackDecider:
             decision = self._backup(mandate, entries, items, instruction)
             decision.degraded = str(exc)
             return decision
+
+    def classify(self, system: str, message: str, schema: dict) -> str:
+        try:
+            return self._primary.classify(system, message, schema)
+        except (DeciderUnavailable, MissingApiKey):
+            return self._backup.classify(system, message, schema)
 
 
 PRIMARY_DECIDERS = {"gemini": GeminiDecider, "groq": GroqDecider}

@@ -72,3 +72,36 @@ class RunResult(BaseModel):
 class RunReport(BaseModel):
     runs: list[RunResult] = []
     skipped: dict[str, str] = {}
+
+
+class MandateProposal(BaseModel):
+    category: str
+    standing_instruction: str
+    per_order_cap: Decimal
+    monthly_cap: Decimal
+    escalation_threshold_pct: Decimal
+
+
+class ChatRequest(BaseModel):
+    user_id: int
+    message: str
+
+
+class ConfirmMandateRequest(BaseModel):
+    user_id: int
+    proposal: MandateProposal
+
+
+class ChatReply(BaseModel):
+    reply: str
+    intent: str
+    proposal: MandateProposal | None = None
+    run: RunReport | None = None
+    cart_mandate_id: int | None = None
+    degraded: str | None = None
+
+
+class AutopilotRequest(BaseModel):
+    user_id: int
+    enabled: bool
+    interval_seconds: int | None = None
