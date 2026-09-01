@@ -1,16 +1,73 @@
 import { useState } from 'react';
-import { api, post } from '../api/client';
+import { api, ApiError, post } from '../api/client';
 import { useResource } from '../api/useResource';
 import { useSession } from '../auth/AuthContext';
-import type { AgentRun, CatalogItem, RestockEntry } from '../api/types';
-import { Empty, Icon, Notice, Panel } from '../components/ui';
+import type { AgentRun, CartStatus, CatalogItem, Mandate, RestockEntry } from '../api/types';
+import { Empty, Icon, Notice, Panel, money, statusColor } from '../components/ui';
+
+interface ProposeOutcome {
+  status: CartStatus;
+  reason: string | null;
+  total: number;
+  itemName: string;
+  quantity: number;
+}
+
+async function loadActive(token: string): Promise<Mandate | null> {
+  try {
+    return await api.checkout<Mandate>('/intent-mandates/active', token);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
 
 export function Catalog() {
   const session = useSession();
   const catalog = useResource<CatalogItem[]>((token) => api.checkout('/catalog?category=groceries', token), []);
   const restock = useResource<RestockEntry[]>((token) => api.checkout('/restock-list', token), []);
   const runs = useResource<AgentRun[]>((token) => api.checkout('/agent-runs?limit=1', token), []);
+  const mandate = useResource<Mandate | null>(loadActive, []);
   const [error, setError] = useState<string | null>(null);
+  const [quantities, setQuantities] = useState<Record<number, number>>({});
+  const [outcome, setOutcome] = useState<ProposeOutcome | null>(null);
+  const [proposing, setProposing] = useState<number | null>(null);
+
+  const qtyFor = (id: number) => quantities[id] ?? 1;
+  const setQty = (id: number, value: number) =>
+    setQuantities((prev) => ({ ...prev, [id]: Math.max(1, Math.min(99, value)) }));
+
+  async function proposeDirect(item: CatalogItem) {
+    if (!mandate.data) {
+      setError('Issue a mandate first — there is nothing to check the cart against.');
+      return;
+    }
+    setProposing(item.id);
+    setError(null);
+    setOutcome(null);
+    try {
+      const decision = await api.checkout<{ status: CartStatus; reason: string | null; total_amount: number }>(
+        '/cart-mandates',
+        session.token,
+        post({
+          intent_mandate_id: mandate.data.id,
+          cart_items: [{ catalog_id: item.id, quantity: qtyFor(item.id) }],
+        }),
+      );
+      setOutcome({
+        status: decision.status,
+        reason: decision.reason,
+        total: decision.total_amount,
+        itemName: item.name,
+        quantity: qtyFor(item.id),
+      });
+      mandate.reload();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setProposing(null);
+    }
+  }
 
   const queued = new Set((restock.data ?? []).map((entry) => entry.catalog_id));
   const latest = runs.data?.[0] ?? null;
@@ -46,6 +103,33 @@ export function Catalog() {
       </div>
 
       {error && <Notice tone="bad">{error}</Notice>}
+
+      <Panel style={{ padding: '14px 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, lineHeight: 1.55, color: 'var(--ink-dim)', flexGrow: 1, minWidth: 320 }}>
+            <strong style={{ color: 'var(--ink-2)', fontWeight: 600 }}>Propose a cart yourself.</strong> The agent stays
+            inside its caps, so it never trips a rejection. Set a quantity and press PROPOSE to send a cart the agent
+            would not — the guardrail checks it exactly the same way, because it trusts no caller.
+            {' '}Try <span className="mono" style={{ color: 'var(--amber)' }}>50 × Daawat Basmati Rice</span> — what the
+            poisoned listing demanded.
+          </span>
+          {outcome && (
+            <span
+              className="mono"
+              style={{
+                border: `1px solid ${statusColor(outcome.status)}`,
+                color: statusColor(outcome.status),
+                padding: '8px 12px',
+                fontSize: 11,
+                letterSpacing: '0.08em',
+              }}
+            >
+              {outcome.quantity} × {outcome.itemName} · {money(outcome.total)} → {outcome.status.replace(/_/g, ' ')}
+              {outcome.reason ? ` · ${outcome.reason}` : ''}
+            </span>
+          )}
+        </div>
+      </Panel>
 
       <div style={{ display: 'flex', gap: 26, alignItems: 'flex-start', flexWrap: 'wrap' }}>
         <Panel style={{ width: 560, flexShrink: 0 }}>
@@ -92,7 +176,7 @@ export function Catalog() {
                   </span>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingLeft: 32 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingLeft: 32, flexWrap: 'wrap' }}>
                   <button
                     onClick={() => markLow(item)}
                     disabled={inQueue || item.stock_status === 'out_of_stock'}
@@ -108,6 +192,35 @@ export function Catalog() {
                   >
                     {inQueue ? 'QUEUED' : 'MARK AS LOW'}
                   </button>
+
+                  <span style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--line)' }}>
+                    <button
+                      onClick={() => setQty(item.id, qtyFor(item.id) - 1)}
+                      className="mono"
+                      style={{ background: 'transparent', color: 'var(--ink-faint)', padding: '2px 8px', fontSize: 11 }}
+                    >
+                      −
+                    </button>
+                    <span className="mono" style={{ minWidth: 26, textAlign: 'center', fontSize: 11, color: 'var(--ink-2)' }}>
+                      {qtyFor(item.id)}
+                    </span>
+                    <button
+                      onClick={() => setQty(item.id, qtyFor(item.id) + 1)}
+                      className="mono"
+                      style={{ background: 'transparent', color: 'var(--ink-faint)', padding: '2px 8px', fontSize: 11 }}
+                    >
+                      +
+                    </button>
+                  </span>
+                  <button
+                    onClick={() => proposeDirect(item)}
+                    disabled={proposing === item.id}
+                    className="mono"
+                    style={{ border: '1px solid var(--line-hot)', background: 'transparent', color: 'var(--ink-dim)', padding: '3px 9px', fontSize: 9, letterSpacing: '0.12em' }}
+                  >
+                    {proposing === item.id ? 'CHECKING…' : 'PROPOSE'}
+                  </button>
+
                   {isFlagged && (
                     <span className="mono" style={{ fontSize: 9, letterSpacing: '0.12em', color: 'var(--bad)', border: '1px solid var(--bad-line)', padding: '3px 7px' }}>
                       FLAGGED · INJECTION

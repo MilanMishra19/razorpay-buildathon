@@ -26,6 +26,7 @@ export function MandateOverview() {
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState<AgentRunResult | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
 
   function refreshAll() {
     mandate.reload();
@@ -60,6 +61,7 @@ export function MandateOverview() {
 
   const m = mandate.data;
   const events = audit.data ?? [];
+  const queueEmpty = (restock.data ?? []).length === 0;
 
   return (
     <div style={{ display: 'flex', gap: 28, alignItems: 'flex-start' }}>
@@ -88,15 +90,52 @@ export function MandateOverview() {
                 RESET DEMO
               </Button>
             )}
+            <Button variant="ghost" onClick={() => setEditing((open) => !open)}>
+              CHANGE LIMITS
+            </Button>
             <Button variant="ghost" onClick={() => revoke(m.id)}>
               REVOKE
             </Button>
-            <Button variant="primary" onClick={runAgent} disabled={running}>
+            <Button variant="primary" onClick={runAgent} disabled={running || queueEmpty}>
               {Icon.play('var(--bg)')}
               {running ? 'RUNNING…' : 'RUN AGENT'}
             </Button>
           </div>
         </div>
+
+        {editing && (
+          <Panel title="CHANGE THE LIMITS" style={{ padding: 0 }}>
+            <div style={{ padding: 24 }}>
+              <p style={{ margin: '0 0 20px', fontSize: 12, lineHeight: 1.6, color: 'var(--ink-dim)' }}>
+                This revokes the current mandate and issues a new one — both are recorded in the ledger. The caps are
+                the whole control surface: change them and the next cart hits a different guardrail.
+              </p>
+              <MandateForm
+                initial={{
+                  perOrder: String(m.per_order_cap),
+                  monthly: String(m.monthly_cap),
+                  threshold: String(m.escalation_threshold_pct),
+                }}
+                submitLabel="REVOKE & RE-ISSUE"
+                onCancel={() => setEditing(false)}
+                onSubmit={async (limits) => {
+                  await api.checkout(`/intent-mandates/${m.id}/revoke`, session.token, post({}));
+                  await issueMandate(session.token, limits);
+                  setEditing(false);
+                  setRunResult(null);
+                  refreshAll();
+                }}
+              />
+            </div>
+          </Panel>
+        )}
+
+        {queueEmpty && (
+          <Notice tone="ok">
+            The restock queue is empty, so there is nothing for the agent to buy. Mark items as low on the Catalog
+            screen first.
+          </Notice>
+        )}
 
         {runError && <Notice tone="bad">Agent: {runError}</Notice>}
         {runResult && <RunSummary result={runResult} />}
@@ -269,38 +308,161 @@ function RunSummary({ result }: { result: AgentRunResult }) {
   );
 }
 
-function IssueMandate({ onIssued }: { onIssued: () => void }) {
-  const session = useSession();
-  const [perOrder, setPerOrder] = useState('500');
-  const [monthly, setMonthly] = useState('3000');
-  const [threshold, setThreshold] = useState('90');
+interface Limits {
+  perOrder: string;
+  monthly: string;
+  threshold: string;
+}
+
+const PRESETS: { label: string; hint: string; limits: Limits }[] = [
+  {
+    label: 'Room to spend',
+    hint: 'cart clears every check — approved and paid outright',
+    limits: { perOrder: '500', monthly: '3000', threshold: '90' },
+  },
+  {
+    label: 'Near the line',
+    hint: 'cart crosses the escalation threshold — waits for you in Approvals',
+    limits: { perOrder: '500', monthly: '300', threshold: '70' },
+  },
+  {
+    label: 'Almost nothing left',
+    hint: 'agent buys less to stay inside the cap, or nothing at all',
+    limits: { perOrder: '500', monthly: '80', threshold: '90' },
+  },
+  {
+    label: 'One item at a time',
+    hint: 'per-order cap forces small carts across several runs',
+    limits: { perOrder: '70', monthly: '3000', threshold: '90' },
+  },
+];
+
+async function issueMandate(token: string, limits: Limits) {
+  const expires = new Date();
+  expires.setDate(expires.getDate() + 30);
+  await api.checkout(
+    '/intent-mandates',
+    token,
+    post({
+      category: 'groceries',
+      per_order_cap: Number(limits.perOrder),
+      monthly_cap: Number(limits.monthly),
+      escalation_threshold_pct: Number(limits.threshold),
+      expires_at: expires.toISOString(),
+    }),
+  );
+}
+
+function MandateForm({
+  initial,
+  submitLabel,
+  onSubmit,
+  onCancel,
+}: {
+  initial: Limits;
+  submitLabel: string;
+  onSubmit: (limits: Limits) => Promise<void>;
+  onCancel?: () => void;
+}) {
+  const [limits, setLimits] = useState<Limits>(initial);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const set = (key: keyof Limits) => (event: { target: { value: string } }) =>
+    setLimits((prev) => ({ ...prev, [key]: event.target.value }));
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError(null);
-    const expires = new Date();
-    expires.setDate(expires.getDate() + 30);
+    setBusy(true);
     try {
-      await api.checkout(
-        '/intent-mandates',
-        session.token,
-        post({
-          category: 'groceries',
-          per_order_cap: Number(perOrder),
-          monthly_cap: Number(monthly),
-          escalation_threshold_pct: Number(threshold),
-          expires_at: expires.toISOString(),
-        }),
-      );
-      onIssued();
+      await onSubmit(limits);
     } catch (err) {
       setError((err as Error).message);
+    } finally {
+      setBusy(false);
     }
   }
 
   return (
-    <div style={{ maxWidth: 560, display: 'flex', flexDirection: 'column', gap: 22 }}>
+    <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <span className="label">Presets — each changes what the next agent run runs into</span>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+          {PRESETS.map((preset) => {
+            const active =
+              preset.limits.perOrder === limits.perOrder &&
+              preset.limits.monthly === limits.monthly &&
+              preset.limits.threshold === limits.threshold;
+            return (
+              <button
+                key={preset.label}
+                type="button"
+                onClick={() => setLimits(preset.limits)}
+                style={{
+                  textAlign: 'left',
+                  padding: '11px 13px',
+                  background: 'transparent',
+                  border: `1px solid ${active ? 'var(--amber)' : 'var(--line)'}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 5,
+                }}
+              >
+                <span style={{ fontSize: 12, fontWeight: 600, color: active ? 'var(--amber)' : 'var(--ink-2)' }}>
+                  {preset.label}
+                </span>
+                <span style={{ fontSize: 11, lineHeight: 1.4, color: 'var(--ink-faint)' }}>{preset.hint}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+          <span className="label">Per-order ₹</span>
+          <input value={limits.perOrder} onChange={set('perOrder')} inputMode="decimal" />
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+          <span className="label">Monthly ₹</span>
+          <input value={limits.monthly} onChange={set('monthly')} inputMode="decimal" />
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+          <span className="label">Escalation %</span>
+          <input value={limits.threshold} onChange={set('threshold')} inputMode="decimal" />
+        </label>
+      </div>
+
+      {error && <Notice tone="bad">{error}</Notice>}
+
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button
+          type="submit"
+          disabled={busy}
+          style={{ height: 46, flexGrow: 1, background: 'var(--amber)', color: 'var(--bg)', fontSize: 12, fontWeight: 700, letterSpacing: '0.16em' }}
+        >
+          {busy ? 'WORKING…' : submitLabel}
+        </button>
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            style={{ height: 46, padding: '0 22px', background: 'transparent', border: '1px solid var(--line-hot)', color: 'var(--ink-dim)', fontSize: 12, fontWeight: 700, letterSpacing: '0.16em' }}
+          >
+            CANCEL
+          </button>
+        )}
+      </div>
+    </form>
+  );
+}
+
+function IssueMandate({ onIssued }: { onIssued: () => void }) {
+  const session = useSession();
+
+  return (
+    <div style={{ maxWidth: 620, display: 'flex', flexDirection: 'column', gap: 22 }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <span className="label">No active mandate</span>
         <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700 }}>Authorise the agent</h1>
@@ -310,27 +472,14 @@ function IssueMandate({ onIssued }: { onIssued: () => void }) {
       </div>
 
       <Panel style={{ padding: 26 }}>
-        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-            <span className="label">Per-order cap (₹)</span>
-            <input value={perOrder} onChange={(e) => setPerOrder(e.target.value)} inputMode="decimal" />
-          </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-            <span className="label">Monthly cap (₹)</span>
-            <input value={monthly} onChange={(e) => setMonthly(e.target.value)} inputMode="decimal" />
-          </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-            <span className="label">Escalation threshold (%)</span>
-            <input value={threshold} onChange={(e) => setThreshold(e.target.value)} inputMode="decimal" />
-          </label>
-          {error && <Notice tone="bad">{error}</Notice>}
-          <button
-            type="submit"
-            style={{ height: 46, background: 'var(--amber)', color: 'var(--bg)', fontSize: 12, fontWeight: 700, letterSpacing: '0.16em' }}
-          >
-            ISSUE MANDATE
-          </button>
-        </form>
+        <MandateForm
+          initial={PRESETS[0].limits}
+          submitLabel="ISSUE MANDATE"
+          onSubmit={async (limits) => {
+            await issueMandate(session.token, limits);
+            onIssued();
+          }}
+        />
       </Panel>
     </div>
   );
