@@ -19,6 +19,7 @@ export type AuditEvent =
 export interface Mandate {
   id: number;
   category: string;
+  standing_instruction: string | null;
   per_order_cap: number;
   monthly_cap: number;
   escalation_threshold_pct: number;
@@ -108,4 +109,5 @@ export interface AgentRunResult {
   dropped_catalog_ids: number[];
   payment_status: string | null;
   model_unavailable: string | null;
+  instruction_used: string | null;
 }

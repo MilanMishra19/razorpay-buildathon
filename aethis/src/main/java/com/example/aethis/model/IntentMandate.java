@@ -31,6 +31,9 @@ public class IntentMandate {
     @Column(nullable = false)
     private String category;
 
+    @Column(name = "standing_instruction", columnDefinition = "text")
+    private String standingInstruction;
+
     @Column(name = "per_order_cap", nullable = false)
     private BigDecimal perOrderCap;
 

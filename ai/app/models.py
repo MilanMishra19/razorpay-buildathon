@@ -31,6 +31,7 @@ class RestockEntry(BaseModel):
 class Mandate(BaseModel):
     id: int
     category: str
+    standing_instruction: str | None = None
     per_order_cap: Decimal
     monthly_cap: Decimal
     escalation_threshold_pct: Decimal
@@ -58,3 +59,4 @@ class RunResult(BaseModel):
     dropped_catalog_ids: list[int] = []
     payment_status: str | None = None
     model_unavailable: str | None = None
+    instruction_used: str | None = None

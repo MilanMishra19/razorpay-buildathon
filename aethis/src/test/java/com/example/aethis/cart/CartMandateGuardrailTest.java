@@ -149,6 +149,7 @@ class CartMandateGuardrailTest {
     private long issueMandate(String category, String perOrderCap, String monthlyCap, String escalationPct) {
         return mandateService.issue(userId, new IssueMandateRequest(
                 category,
+                "keep the basics stocked",
                 new BigDecimal(perOrderCap),
                 new BigDecimal(monthlyCap),
                 new BigDecimal(escalationPct),

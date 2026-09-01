@@ -25,7 +25,7 @@ interface, so the provider is a one-file swap; an `offline` decider ships alongs
 fallback that runs the whole cycle deterministically when no model is reachable.
 
 **Input, assembled by FastAPI before the call:**
-- The user's standing instruction (plain language, e.g. "keep milk, bread, eggs stocked, stay in budget")
+- The user's standing instruction (plain language, e.g. "keep milk, bread, eggs stocked, stay in budget") — read from `intent_mandates.standing_instruction`, so the brief and the limits travel together as one authorisation. `POST /agent/run` may pass an `instruction` to override it for a one-off cycle.
 - The current "needs restocking" list (`GET /restock-list`)
 - The relevant catalog slice — only items matching the active mandate's category, not the full catalog (`GET /catalog?category=...`)
 - Remaining budget for this cycle (from Spring Boot's cumulative spend calculation, via `GET /intent-mandates/active`)

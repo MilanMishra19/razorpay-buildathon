@@ -2,7 +2,15 @@ import { useState, type FormEvent } from 'react';
 import { api, ApiError, post } from '../api/client';
 import { useResource } from '../api/useResource';
 import { useSession } from '../auth/AuthContext';
-import type { AgentRunResult, AuditEntry, ChainVerification, Mandate, RestockEntry } from '../api/types';
+import type {
+  AgentRunResult,
+  AuditEntry,
+  CartMandate,
+  CatalogItem,
+  ChainVerification,
+  Mandate,
+  RestockEntry,
+} from '../api/types';
 import { BudgetMeter } from '../components/BudgetMeter';
 import { Button, Chip, Empty, Icon, Notice, Panel, clockTime, daysUntil, eventColor, money } from '../components/ui';
 
@@ -22,6 +30,8 @@ export function MandateOverview() {
   const chain = useResource<ChainVerification>((token) => api.checkout('/audit-log/verify', token), []);
   const restock = useResource<RestockEntry[]>((token) => api.checkout('/restock-list', token), []);
   const demo = useResource<{ enabled: boolean }>((token) => api.checkout('/demo/status', token), []);
+  const carts = useResource<CartMandate[]>((token) => api.checkout('/cart-mandates', token), []);
+  const catalog = useResource<CatalogItem[]>((token) => api.checkout('/catalog?category=groceries', token), []);
 
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState<AgentRunResult | null>(null);
@@ -33,6 +43,7 @@ export function MandateOverview() {
     audit.reload();
     chain.reload();
     restock.reload();
+    carts.reload();
   }
 
   async function runAgent() {
@@ -112,6 +123,7 @@ export function MandateOverview() {
               </p>
               <MandateForm
                 initial={{
+                  instruction: m.standing_instruction ?? DEFAULT_INSTRUCTION,
                   perOrder: String(m.per_order_cap),
                   monthly: String(m.monthly_cap),
                   threshold: String(m.escalation_threshold_pct),
@@ -136,6 +148,25 @@ export function MandateOverview() {
             screen first.
           </Notice>
         )}
+
+        <Panel title="STANDING INSTRUCTION">
+          <div style={{ padding: '18px 20px', display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+            <span style={{ width: 3, alignSelf: 'stretch', background: 'var(--amber)', flexShrink: 0 }} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+              <span style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--ink-2)' }}>
+                {m.standing_instruction ?? (
+                  <span style={{ color: 'var(--ink-faint)', fontStyle: 'italic' }}>
+                    None set — the agent falls back to a generic restock instruction. Use CHANGE LIMITS to say what you
+                    actually want.
+                  </span>
+                )}
+              </span>
+              <span style={{ fontSize: 11, color: 'var(--ink-faint)' }}>
+                The only part the model interprets. The caps below are enforced in code, whatever it decides.
+              </span>
+            </div>
+          </div>
+        </Panel>
 
         {runError && <Notice tone="bad">Agent: {runError}</Notice>}
         {runResult && <RunSummary result={runResult} />}
@@ -178,6 +209,8 @@ export function MandateOverview() {
             <Stat label="Mandate expires" value={`${daysUntil(m.expires_at)}d`} note={new Date(m.expires_at).toLocaleDateString('en-GB')} />
           </div>
         </Panel>
+
+        <Purchases carts={carts.data ?? []} catalog={catalog.data ?? []} />
 
         <Panel title="RECENT ACTIVITY">
           {events.length === 0 ? (
@@ -261,6 +294,64 @@ export function MandateOverview() {
   );
 }
 
+function Purchases({ carts, catalog }: { carts: CartMandate[]; catalog: CatalogItem[] }) {
+  const names = new Map(catalog.map((item) => [item.id, item.name]));
+  const bought = carts.filter((cart) => cart.status === 'approved');
+
+  const totals = new Map<number, { quantity: number; spent: number }>();
+  for (const cart of bought) {
+    for (const line of cart.cart_items) {
+      const current = totals.get(line.catalog_id) ?? { quantity: 0, spent: 0 };
+      totals.set(line.catalog_id, {
+        quantity: current.quantity + line.quantity,
+        spent: current.spent + line.quantity * line.unit_price,
+      });
+    }
+  }
+  const rows = [...totals.entries()].sort((a, b) => b[1].spent - a[1].spent);
+
+  return (
+    <Panel
+      title="WHERE THE MONEY WENT"
+      actions={
+        <span className="mono" style={{ fontSize: 10, color: 'var(--ink-faint)' }}>
+          {bought.length} approved {bought.length === 1 ? 'cart' : 'carts'}
+        </span>
+      }
+    >
+      {rows.length === 0 ? (
+        <Empty>Nothing bought yet.</Empty>
+      ) : (
+        rows.map(([catalogId, totalsForItem]) => (
+          <div
+            key={catalogId}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 16,
+              padding: '12px 20px',
+              borderBottom: '1px solid var(--line-soft)',
+            }}
+          >
+            <span className="mono" style={{ width: 30, fontSize: 11, color: '#3d4954' }}>
+              {String(catalogId).padStart(2, '0')}
+            </span>
+            <span style={{ flexGrow: 1, fontSize: 13, color: 'var(--ink-2)' }}>
+              {names.get(catalogId) ?? `Item #${catalogId}`}
+            </span>
+            <span className="mono" style={{ width: 60, textAlign: 'right', fontSize: 12, color: 'var(--ink-dim)' }}>
+              x{totalsForItem.quantity}
+            </span>
+            <span className="mono" style={{ width: 100, textAlign: 'right', fontSize: 13 }}>
+              {money(totalsForItem.spent)}
+            </span>
+          </div>
+        ))
+      )}
+    </Panel>
+  );
+}
+
 function Stat({ label, value, note, tone }: { label: string; value: string; note?: string; tone?: string }) {
   return (
     <div style={{ background: 'var(--panel-sunken)', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 7 }}>
@@ -308,7 +399,11 @@ function RunSummary({ result }: { result: AgentRunResult }) {
   );
 }
 
+const DEFAULT_INSTRUCTION =
+  'Keep milk, bread and eggs stocked. Buy the smallest sensible quantity of each and stay well inside the budget.';
+
 interface Limits {
+  instruction: string;
   perOrder: string;
   monthly: string;
   threshold: string;
@@ -318,22 +413,22 @@ const PRESETS: { label: string; hint: string; limits: Limits }[] = [
   {
     label: 'Room to spend',
     hint: 'cart clears every check — approved and paid outright',
-    limits: { perOrder: '500', monthly: '3000', threshold: '90' },
+    limits: { instruction: DEFAULT_INSTRUCTION, perOrder: '500', monthly: '3000', threshold: '90' },
   },
   {
     label: 'Near the line',
     hint: 'cart crosses the escalation threshold — waits for you in Approvals',
-    limits: { perOrder: '500', monthly: '300', threshold: '70' },
+    limits: { instruction: DEFAULT_INSTRUCTION, perOrder: '500', monthly: '300', threshold: '70' },
   },
   {
     label: 'Almost nothing left',
     hint: 'agent buys less to stay inside the cap, or nothing at all',
-    limits: { perOrder: '500', monthly: '80', threshold: '90' },
+    limits: { instruction: DEFAULT_INSTRUCTION, perOrder: '500', monthly: '80', threshold: '90' },
   },
   {
     label: 'One item at a time',
     hint: 'per-order cap forces small carts across several runs',
-    limits: { perOrder: '70', monthly: '3000', threshold: '90' },
+    limits: { instruction: DEFAULT_INSTRUCTION, perOrder: '70', monthly: '3000', threshold: '90' },
   },
 ];
 
@@ -345,6 +440,7 @@ async function issueMandate(token: string, limits: Limits) {
     token,
     post({
       category: 'groceries',
+      standing_instruction: limits.instruction,
       per_order_cap: Number(limits.perOrder),
       monthly_cap: Number(limits.monthly),
       escalation_threshold_pct: Number(limits.threshold),
@@ -398,7 +494,7 @@ function MandateForm({
               <button
                 key={preset.label}
                 type="button"
-                onClick={() => setLimits(preset.limits)}
+                onClick={() => setLimits((prev) => ({ ...preset.limits, instruction: prev.instruction }))}
                 style={{
                   textAlign: 'left',
                   padding: '11px 13px',
@@ -418,6 +514,30 @@ function MandateForm({
           })}
         </div>
       </div>
+
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+        <span className="label">What you want the agent to do</span>
+        <textarea
+          value={limits.instruction}
+          onChange={(e) => setLimits((prev) => ({ ...prev, instruction: e.target.value }))}
+          rows={3}
+          placeholder="Plain language — e.g. keep milk, bread and eggs stocked, prefer the cheaper brand"
+          style={{
+            fontFamily: 'var(--sans)',
+            fontSize: 13,
+            lineHeight: 1.6,
+            color: 'var(--ink)',
+            background: 'var(--void)',
+            border: '1px solid var(--line)',
+            padding: '12px 14px',
+            outline: 'none',
+            resize: 'vertical',
+          }}
+        />
+        <span style={{ fontSize: 11, color: 'var(--ink-faint)', lineHeight: 1.5 }}>
+          This is the only thing the model interprets. Everything below is a hard limit it cannot cross.
+        </span>
+      </label>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>

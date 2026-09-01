@@ -48,6 +48,7 @@ public final class Snapshots {
         snapshot.put("id", mandate.getId());
         snapshot.put("userId", mandate.getUserId());
         snapshot.put("category", mandate.getCategory());
+        snapshot.put("standingInstruction", mandate.getStandingInstruction());
         snapshot.put("perOrderCap", mandate.getPerOrderCap().toPlainString());
         snapshot.put("monthlyCap", mandate.getMonthlyCap().toPlainString());
         snapshot.put("escalationThresholdPct", mandate.getEscalationThresholdPct().toPlainString());

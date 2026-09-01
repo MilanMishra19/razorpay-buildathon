@@ -67,7 +67,7 @@ class PaymentFlowTest {
 
         milkId = saveCatalog("Milk", "62.00");
         attaId = saveCatalog("Atta", "285.00");
-        mandateId = mandateService.issue(userId, new IssueMandateRequest("groceries",
+        mandateId = mandateService.issue(userId, new IssueMandateRequest("groceries", "keep the basics stocked",
                 new BigDecimal("500"), new BigDecimal("300"), new BigDecimal("90"),
                 Instant.now().plus(30, ChronoUnit.DAYS))).id();
     }

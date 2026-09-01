@@ -33,7 +33,7 @@ The agent is not a user. It calls this API with a shared secret header `X-Servic
 ### `POST /intent-mandates`
 Issue a new mandate (user sets up or renews their monthly budget + rules). Creates the row in `intent_mandates` and writes the first `audit_log` entry (`event: issued`).
 
-**Request:** `category`, `per_order_cap`, `monthly_cap`, `escalation_threshold_pct`, `expires_at` — `user_id` is taken from the caller's token, never the body
+**Request:** `category`, `standing_instruction` (optional, plain language — what the agent should aim to do), `per_order_cap`, `monthly_cap`, `escalation_threshold_pct`, `expires_at` — `user_id` is taken from the caller's token, never the body
 
 **Response:** the created mandate, including `id`, `status: active`, `mandate_hash`
 

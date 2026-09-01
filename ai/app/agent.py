@@ -18,6 +18,8 @@ async def run_cycle(
     if mandate is None:
         raise NoActiveMandate("user has no active intent mandate")
 
+    instruction = mandate.standing_instruction or instruction
+
     entries = await client.restock_list(user_id)
     catalog = await client.catalog(user_id, mandate.category)
     sanitized, flagged = screen(catalog)
@@ -47,6 +49,7 @@ async def run_cycle(
             flagged_catalog_ids=flagged,
             dropped_catalog_ids=dropped,
             model_unavailable=decision.degraded,
+            instruction_used=instruction,
         )
 
     cart = await client.propose_cart(user_id, mandate.id, kept)
@@ -71,4 +74,5 @@ async def run_cycle(
         dropped_catalog_ids=dropped,
         payment_status=payment_status,
         model_unavailable=decision.degraded,
+        instruction_used=instruction,
     )

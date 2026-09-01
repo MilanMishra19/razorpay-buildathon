@@ -48,6 +48,7 @@ public class IntentMandateService {
         IntentMandate mandate = new IntentMandate();
         mandate.setUserId(userId);
         mandate.setCategory(request.category().trim().toLowerCase());
+        mandate.setStandingInstruction(normalise(request.standingInstruction()));
         mandate.setPerOrderCap(Money.normalize(request.perOrderCap()));
         mandate.setMonthlyCap(Money.normalize(request.monthlyCap()));
         mandate.setEscalationThresholdPct(Money.normalize(escalationThresholdPct));
@@ -63,6 +64,10 @@ public class IntentMandateService {
                 AuditEvent.ISSUED, null, Snapshots.of(mandate));
 
         return withSpend(mandate);
+    }
+
+    private static String normalise(String instruction) {
+        return instruction == null || instruction.isBlank() ? null : instruction.trim();
     }
 
     @Transactional(readOnly = true)

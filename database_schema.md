@@ -28,6 +28,7 @@ The user-issued policy that authorizes the agent to act. One active mandate per 
 | `id` | UUID / BIGINT | **PK** | |
 | `user_id` | UUID / BIGINT | **FK → users.id**, NOT NULL | |
 | `category` | VARCHAR | NOT NULL | e.g. `groceries` |
+| `standing_instruction` | TEXT | NULLABLE | the user's plain-language brief ("keep milk and bread stocked, prefer the cheaper brand") — the **only** input the LLM interprets. Part of the mandate because it is half of the authorisation: what you want, alongside what you allow. Included in the hashed snapshot, so changing it is visible in the ledger. |
 | `per_order_cap` | DECIMAL | NOT NULL | max spend allowed in a single order |
 | `monthly_cap` | DECIMAL | NOT NULL | max cumulative spend allowed in the mandate period |
 | `escalation_threshold_pct` | DECIMAL | NOT NULL, DEFAULT 90 | when *projected* cumulative spend (already-paid this period + the proposed cart total) reaches this % of `monthly_cap`, the cart is flagged for review (`pending_approval`) instead of being auto-approved |

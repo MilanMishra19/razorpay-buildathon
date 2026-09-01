@@ -9,6 +9,7 @@ import java.time.Instant;
 public record MandateResponse(
         Long id,
         String category,
+        String standingInstruction,
         BigDecimal perOrderCap,
         BigDecimal monthlyCap,
         BigDecimal escalationThresholdPct,
@@ -23,6 +24,7 @@ public record MandateResponse(
         return new MandateResponse(
                 mandate.getId(),
                 mandate.getCategory(),
+                mandate.getStandingInstruction(),
                 mandate.getPerOrderCap(),
                 mandate.getMonthlyCap(),
                 mandate.getEscalationThresholdPct(),

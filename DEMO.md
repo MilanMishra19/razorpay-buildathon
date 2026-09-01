@@ -12,8 +12,12 @@ cd ai     && ./.venv/Scripts/python -m uvicorn app.main:app --port 8000
 cd frontend && npm run dev                             # :5173
 ```
 
-Sign in, then hit **RESET DEMO** on the Mandate screen for a clean slate. Issue a mandate
-with **per-order ₹500, monthly ₹3,000, escalation 90%**.
+Sign in, then hit **RESET DEMO** on the Mandate screen for a clean slate. Issue a mandate:
+write what you actually want in plain language — *"keep milk, bread and eggs stocked, buy the
+smallest sensible quantity"* — and set **per-order ₹500, monthly ₹3,000, escalation 90%**.
+
+That split is the pitch in one screen: the sentence is the only thing the model interprets,
+the three numbers are enforced in code no matter what it decides.
 
 On the Catalog screen, mark **milk, bread, eggs** as low — and **Daawat Basmati Rice**, the
 poisoned listing. Putting the attack on the shopping list is the point: the agent has a
@@ -88,8 +92,12 @@ run the agent. The cart lands above 90% of the cap, so it goes to **Approvals** 
 being paid. That screen shows where the cart *would* leave you — current spend, the cart's
 contribution, and the line it crosses. Approve it and the payment goes through.
 
-**A rejected cart.** Set per-order to ₹100 and run again — the cart is rejected outright for
-`exceeds per-order cap` and nothing is charged.
+**A rejected cart.** Lowering the caps will *not* do this: the agent respects its own limits and
+simply buys less, so a well-behaved agent never trips a rejection. To see one, go to **Catalog**,
+set Daawat Basmati Rice to **50** and press **PROPOSE** — a cart the agent would never send, which
+is exactly the 50 units the poisoned listing demanded. `rejected · exceeds per-order cap`, nothing
+charged. That is the backstop behind the injection defence: the guardrail re-checks every caller,
+agent or not.
 
 **Payment failure and retry.** Restart the backend with `RAZORPAY_FORCE_FAILURE=true`. The
 payment records as `failed` with its reason in the timeline, and `POST /payment-mandates/{id}/retry`
