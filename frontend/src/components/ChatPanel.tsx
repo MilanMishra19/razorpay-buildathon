@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
+import { useResource } from '../api/useResource';
 import { api, post } from '../api/client';
 import { useSession } from '../auth/AuthContext';
-import type { ChatReply, MandateProposal, PaymentMandate, PendingCart } from '../api/types';
+import type { CatalogItem, ChatReply, MandateProposal, PaymentMandate, PendingCart } from '../api/types';
 import { CheckoutDismissed, openCheckout } from '../api/razorpay';
 import { Icon, money } from './ui';
 
@@ -25,6 +26,9 @@ const OPENERS = [
 
 export function ChatPanel({ onChanged }: { onChanged: () => void }) {
   const session = useSession();
+  const catalog = useResource<CatalogItem[]>((token) => api.checkout('/catalog', token), []);
+  const itemName = (id: number) =>
+    (catalog.data ?? []).find((item) => item.id === id)?.name ?? `Item #${id}`;
   const [turns, setTurns] = useState<Turn[]>([
     {
       who: 'aethis',
@@ -196,6 +200,7 @@ export function ChatPanel({ onChanged }: { onChanged: () => void }) {
             onConfirm={confirm}
             onResolve={resolveCart}
             onSettle={settle}
+            name={itemName}
             busy={busy}
           />
         ))}
@@ -281,12 +286,14 @@ function Bubble({
   onConfirm,
   onResolve,
   onSettle,
+  name,
   busy,
 }: {
   turn: Turn;
   onConfirm: (proposal: MandateProposal) => void;
   onResolve: (cart: PendingCart, decision: 'approve' | 'decline') => void;
   onSettle: (payment: PaymentMandate) => void;
+  name: (id: number) => string;
   busy: boolean;
 }) {
   const mine = turn.who === 'you';
@@ -320,13 +327,24 @@ function Bubble({
         <Actionable tone="var(--stamp)" label="AWAITING YOUR DECISION">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12.5 }}>
             {turn.cart.cart_items.map((item, index) => (
-              <div key={index} style={{ display: 'flex', justifyContent: 'space-between', gap: 14 }}>
-                <span style={{ color: 'var(--ink-dim)' }}>
-                  {item.substitutes_for != null ? 'Swapped in' : 'Item'} ×{item.quantity}
-                </span>
-                <span className="mono" style={{ color: 'var(--ink)' }}>
-                  {money(item.unit_price * item.quantity)}
-                </span>
+              <div key={index} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14 }}>
+                  <span style={{ color: 'var(--ink-2)' }}>
+                    {name(item.catalog_id)}
+                    {item.quantity > 1 && (
+                      <span className="mono" style={{ color: 'var(--ink-faint)' }}> ×{item.quantity}</span>
+                    )}
+                  </span>
+                  <span className="mono" style={{ color: 'var(--ink)', flexShrink: 0 }}>
+                    {money(item.unit_price * item.quantity)}
+                  </span>
+                </div>
+                {item.substitutes_for != null && (
+                  <span style={{ fontSize: 11, color: 'var(--pencil)', lineHeight: 1.45 }}>
+                    swapped in for {name(item.substitutes_for)}
+                    {item.rationale ? ` — ${item.rationale}` : ''}
+                  </span>
+                )}
               </div>
             ))}
             <div

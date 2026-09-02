@@ -225,8 +225,11 @@ async def talk(request: ChatRequest) -> ChatReply:
                 queue = await checkout.awaiting_checkout(request.user_id)
                 outstanding = queue[0] if queue else None
 
+            catalog = await checkout.catalog(request.user_id)
+            names = {item.id: item.name for item in catalog}
+
             return ChatReply(
-                reply=summarise_run(report),
+                reply=summarise_run(report, names),
                 intent=kind,
                 run=report,
                 payment=outstanding,
@@ -336,17 +339,32 @@ def settled(run) -> str:
     }.get(run.payment_status or "", "approved")
 
 
-def summarise_run(report: RunReport) -> str:
+def summarise_run(report: RunReport, names: dict[int, str] | None = None) -> str:
+    """
+    Names what it bought. "2 item(s)" tells the user nothing they can check, and a summary of a
+    purchase that does not say what was purchased is not a summary.
+    """
     if not report.runs:
         skipped = "; ".join(f"{k}: {v}" for k, v in report.skipped.items())
         return f"Nothing to do. {skipped}" if skipped else "There was nothing queued to buy."
 
+    names = names or {}
     lines = []
     for run in report.runs:
-        outcome = settled(run)
+        basket = ", ".join(describe_line(line, names) for line in run.proposed_cart)
         detail = f" — {run.reason}" if run.reason else ""
-        lines.append(f"{run.category}: {len(run.proposed_cart)} item(s), {outcome}{detail}")
+        body = f"{basket}. {settled(run).capitalize()}" if basket else settled(run).capitalize()
+        lines.append(f"{run.category}: {body}{detail}")
     return "\n".join(lines)
+
+
+def describe_line(line, names: dict[int, str]) -> str:
+    name = names.get(line.catalog_id, f"item #{line.catalog_id}")
+    quantity = f" ×{line.quantity}" if line.quantity > 1 else ""
+    if line.substitutes_for is not None:
+        replaced = names.get(line.substitutes_for, f"item #{line.substitutes_for}")
+        return f"{name}{quantity} in place of {replaced}"
+    return f"{name}{quantity}"
 
 
 @app.get("/agent/autopilot")
