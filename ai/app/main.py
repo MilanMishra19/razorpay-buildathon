@@ -218,10 +218,18 @@ async def talk(request: ChatRequest) -> ChatReply:
                 settings.default_instruction,
                 (intent.get("category") or None),
             )
+            # An approved cart leaves a Razorpay order behind. Hand it straight back so the
+            # conversation can finish the job rather than sending the user off to another screen.
+            outstanding = None
+            if any(run.payment_status == "created" for run in report.runs):
+                queue = await checkout.awaiting_checkout(request.user_id)
+                outstanding = queue[0] if queue else None
+
             return ChatReply(
                 reply=summarise_run(report),
                 intent=kind,
                 run=report,
+                payment=outstanding,
                 suggestions=conversation.suggestions_for(kind),
             )
 
@@ -307,6 +315,27 @@ def expiry() -> str:
     return (datetime.now(timezone.utc) + timedelta(days=30)).isoformat().replace("+00:00", "Z")
 
 
+def settled(run) -> str:
+    """
+    An approved cart is not a paid one. Against a live gateway the cycle raises a Razorpay order and
+    stops, because money moves when a person completes checkout and the server verifies the
+    signature. Saying "bought and paid for" at that point would be the one kind of lie this system
+    exists to prevent.
+    """
+    if run.outcome != "approved":
+        return {
+            "pending_approval": "waiting for your approval",
+            "rejected": "refused by the guardrail",
+            "nothing_proposed": "nothing worth buying",
+        }.get(run.outcome, run.outcome)
+
+    return {
+        "paid": "bought and paid for",
+        "created": "approved — the order is raised and waiting for you to complete checkout",
+        "failed": "approved, but the payment failed",
+    }.get(run.payment_status or "", "approved")
+
+
 def summarise_run(report: RunReport) -> str:
     if not report.runs:
         skipped = "; ".join(f"{k}: {v}" for k, v in report.skipped.items())
@@ -314,12 +343,7 @@ def summarise_run(report: RunReport) -> str:
 
     lines = []
     for run in report.runs:
-        outcome = {
-            "approved": "bought and paid for",
-            "pending_approval": "waiting for your approval",
-            "rejected": "refused by the guardrail",
-            "nothing_proposed": "nothing worth buying",
-        }.get(run.outcome, run.outcome)
+        outcome = settled(run)
         detail = f" — {run.reason}" if run.reason else ""
         lines.append(f"{run.category}: {len(run.proposed_cart)} item(s), {outcome}{detail}")
     return "\n".join(lines)

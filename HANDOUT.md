@@ -224,6 +224,8 @@ the page says so, and so should you.
 | Run summary shows a degraded notice | The model was unreachable and the deterministic decider ran. Guardrails, chain and payment were all still real — the UI says so rather than hiding it. |
 | Chain reports broken unexpectedly | `/demo/reset` deleted rows mid-chain, or TAMPER was pressed. RESTORE, then verify. |
 | Approvals empty during a demo | The agent stays inside its caps, so it rarely escalates. Use an out-of-stock item to force a substitution, or **PROPOSE** from Catalog to force a rejection. |
+| *"approve it"* → nothing waiting, right after a cycle | The cycle **approved** rather than escalated, so there was nothing to approve. An approved cart raises a Razorpay order directly — look for the **COMPLETE PAYMENT** card instead. |
+| Carts pending for one account but not another | Everything is per-user. A cart waiting on one login is invisible to another. |
 
 ---
 
