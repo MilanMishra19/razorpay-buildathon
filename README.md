@@ -66,7 +66,7 @@ so a dead key cannot kill a demo — and the UI says when it is running.
 
 ## Docs
 
-[`DEMO.md`](DEMO.md) · [`database_schema.md`](database_schema.md) ·
+[`DEMO.md`](DEMO.md) — six-minute walkthrough · [`HANDOUT.md`](HANDOUT.md) — what to test and explore · [`database_schema.md`](database_schema.md) ·
 [`aethis/backend_api_endpoints.md`](aethis/backend_api_endpoints.md) ·
 [`ai/ai_agent_design.md`](ai/ai_agent_design.md) ·
 [`frontend/frontend_screens.md`](frontend/frontend_screens.md)

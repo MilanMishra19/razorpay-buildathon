@@ -11,8 +11,8 @@ import { Button, Empty, Icon, Notice, Panel, clockTime, eventColor, money, statu
 type Filter = 'pending_approval' | 'all' | 'rejected';
 
 const FILTERS: { key: Filter; label: string }[] = [
-  { key: 'pending_approval', label: 'Pending approval' },
   { key: 'all', label: 'All' },
+  { key: 'pending_approval', label: 'Awaiting you' },
   { key: 'rejected', label: 'Blocked' },
 ];
 
@@ -22,7 +22,7 @@ export function Transactions() {
   const mandates = useResource<Mandate[]>(loadActiveMandates, [], 8000);
   const catalog = useResource<CatalogItem[]>((token) => api.checkout('/catalog', token), []);
   const audit = useResource<AuditEntry[]>((token) => api.checkout('/audit-log', token), [], 8000);
-  const [filter, setFilter] = useState<Filter>('pending_approval');
+  const [filter, setFilter] = useState<Filter>('all');
   const [open, setOpen] = useState<number | null>(null);
   const [busy, setBusy] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +54,7 @@ export function Transactions() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <span className="label">Every proposal, and what policy did with it</span>
+          <span className="label">Every proposal the agent made, and what policy did with it</span>
           <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700 }}>Transactions</h1>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>

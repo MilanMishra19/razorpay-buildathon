@@ -33,8 +33,12 @@ export function Merchant() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <span className="label">What the AI channel is worth</span>
+          <span className="label">The merchant's side · across every AI buyer</span>
           <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700 }}>Merchant analytics</h1>
+          <span style={{ fontSize: 12.5, color: 'var(--ink-dim)', maxWidth: 520, lineHeight: 1.6 }}>
+            Every other screen is one buyer supervising their agent. This one is the shop owner asking
+            whether accepting autonomous purchases is worth it, aggregated over all of them.
+          </span>
         </div>
         {demo.data?.enabled && (
           <div style={{ display: 'flex', gap: 10 }}>
