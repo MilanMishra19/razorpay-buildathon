@@ -65,7 +65,7 @@ export async function openCheckout(payment: PaymentMandate, email: string): Prom
       name: 'Aethis',
       description: `Cart #${payment.cart_mandate_id}`,
       prefill: { email },
-      theme: { color: '#e8a33d' },
+      theme: { color: '#4a2d8c' },
       handler: (response: CheckoutResult) => {
         settled = true;
         resolve(response);

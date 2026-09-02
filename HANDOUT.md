@@ -47,6 +47,7 @@ Wait for all four containers, then check:
 
 ```bash
 curl -s localhost:8000/health          # {"provider":"groq","model":"openai/gpt-oss-120b"}
+curl -s localhost:8080/.well-known/agent-catalog.json   # discovery, no auth needed
 docker compose logs checkout | grep -i "razorpay client"
 ```
 
@@ -76,6 +77,8 @@ alone will not make it shop. Queue items on **Catalog** (`+ ADD`) first.
 | `Why didn't you buy the tea?` | *"…is out of stock. I will not buy a placeholder just to fill the slot."* |
 | `Why did you skip the Gillette razor blades?` | *"…is not on your restock list."* |
 | `Start shopping on your own` / `stop shopping on your own` | Autopilot from conversation |
+| `approve it` (with a cart pending) | Surfaces the cart with its total and an **APPROVE & RAISE PAYMENT** button — it will not move money on the sentence alone |
+| `decline that` | Same shape, closes the cart, records the refusal |
 
 ### Should refuse, gracefully
 
@@ -156,7 +159,9 @@ money went · **AWAITING CHECKOUT** → **COMPLETE PAYMENT** opens real Razorpay
 `4111 1111 1111 1111`, any future expiry, any CVV) · spend appears only *after* the server verifies
 the signature.
 
-**AI Buyer** — chat with follow-up chips · draft mandate card with **ISSUE THIS MANDATE** ·
+**AI Buyer** — the whole flow lives here: mandate → cycle → approve → pay. Chat with follow-up chips ·
+draft mandate card with **ISSUE THIS MANDATE** · pending-cart card with **APPROVE & RAISE PAYMENT** ·
+order card with **COMPLETE PAYMENT** opening Razorpay inline ·
 autopilot toggle (off by default; 60s/2m/5m; live countdown) · cycle history with per-category
 outcomes.
 

@@ -99,10 +99,18 @@ class ConfirmMandateRequest(BaseModel):
     proposal: MandateProposal
 
 
+class ResolveCartRequest(BaseModel):
+    user_id: int
+    cart_mandate_id: int
+    decision: str
+
+
 class ChatReply(BaseModel):
     reply: str
     intent: str
     suggestions: list[str] = []
+    cart: dict | None = None
+    payment: dict | None = None
     proposal: MandateProposal | None = None
     run: RunReport | None = None
     cart_mandate_id: int | None = None

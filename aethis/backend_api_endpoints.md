@@ -195,6 +195,15 @@ Recomputes **the caller's** hash chain end to end and confirms nothing has been 
 
 ---
 
+## Discovery
+
+### `GET /.well-known/agent-catalog.json`  *(unauthenticated)*
+
+What an AI buyer reads before it tries to transact. Describes the mandate model, where the products
+are, the four steps to a completed purchase, all six checks applied to every proposal with what each
+one does on failure, the substitution policy, and where the audit chain lives. Unauthenticated
+because discovery has to work before an agent has credentials.
+
 ## Merchant
 
 ### `GET /merchant/metrics`

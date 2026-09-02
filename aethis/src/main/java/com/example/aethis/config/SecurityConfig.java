@@ -26,6 +26,7 @@ public class SecurityConfig {
 
     private static final String[] PUBLIC_PATHS = {
             "/error",
+            "/.well-known/**",
             "/auth/register",
             "/auth/login",
             "/docs",

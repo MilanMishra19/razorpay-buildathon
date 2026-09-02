@@ -15,6 +15,7 @@ from .models import (
     ChatRequest,
     ConfirmMandateRequest,
     MandateProposal,
+    ResolveCartRequest,
     RunReport,
     RunRequest,
 )
@@ -133,6 +134,25 @@ async def talk(request: ChatRequest) -> ChatReply:
                 intent="create_mandate",
                 proposal=proposal,
                 suggestions=conversation.suggestions_for("create_mandate", has_proposal=True),
+            )
+
+        if kind in ("approve_cart", "decline_cart"):
+            pending = await checkout.carts(request.user_id, "pending_approval")
+            if not pending:
+                return ChatReply(
+                    reply=conversation.nothing_awaiting(),
+                    intent=kind,
+                    suggestions=conversation.suggestions_for("unknown"),
+                )
+            cart = pending[0]
+            catalog = await checkout.catalog(request.user_id)
+            names = {item.id: item.name for item in catalog}
+            return ChatReply(
+                reply=conversation.describe_cart_for_decision(cart, names),
+                intent="awaiting_decision",
+                cart={**cart, "intended_decision": "approve" if kind == "approve_cart" else "decline"},
+                cart_mandate_id=cart["id"],
+                suggestions=conversation.suggestions_for("awaiting_decision"),
             )
 
         if kind == "list_queue":
@@ -314,4 +334,39 @@ async def autopilot_status() -> dict:
 async def autopilot_set(request: AutopilotRequest) -> dict:
     return app.state.autopilot.configure(
         request.enabled, request.user_id, request.interval_seconds
+    )
+
+
+@app.post("/chat/resolve", response_model=ChatReply)
+async def resolve(request: ResolveCartRequest) -> ChatReply:
+    """
+    Approving a cart moves money, so it does not happen on an intent classification. The chat surfaces
+    the cart and this endpoint is reached only by a deliberate click, the same way a mandate is issued.
+    """
+    checkout = app.state.checkout
+    decision = "APPROVE" if request.decision.lower().startswith("a") else "DECLINE"
+
+    try:
+        cart = await checkout.resolve_cart(request.user_id, request.cart_mandate_id, decision)
+        if decision == "DECLINE":
+            return ChatReply(
+                reply=(
+                    f"Declined. Cart #{request.cart_mandate_id} is closed, nothing was charged, and the "
+                    f"refusal is in the ledger under your name."
+                ),
+                intent="cart_declined",
+                suggestions=conversation.suggestions_for("cart_declined"),
+            )
+
+        payment = await checkout.raise_payment(request.user_id, request.cart_mandate_id)
+    except CheckoutError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return ChatReply(
+        reply=conversation.describe_settlement(payment),
+        intent="awaiting_payment",
+        cart=cart,
+        payment=payment,
+        cart_mandate_id=request.cart_mandate_id,
+        suggestions=conversation.suggestions_for("awaiting_payment"),
     )

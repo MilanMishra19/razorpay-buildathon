@@ -29,7 +29,8 @@ the economics of a purchase, and a payment response can be forged. Reasoning is 
 | | |
 |---|---|
 | **Intent mandates** | Standing policy per category: per-order cap, monthly cap, escalation threshold, expiry |
-| **Conversational buyer** | The model reads *intent only* and drafts a mandate; issuing it is a separate confirm. Answers are assembled from the ledger, so they cannot disagree with it |
+| **Conversational checkout** | Mandate, cycle, approval and payment all run from the chat. The model reads *intent only*; both money moments are a deliberate click. Answers are assembled from the ledger, so they cannot disagree with it |
+| **Agent-readable** | `/.well-known/agent-catalog.json` — unauthenticated discovery describing not just the products but the rules: what to hold before proposing, the six checks, what escalates, which failures are permanent |
 | **Deterministic policy engine** | Six checks per proposal, each reporting the numbers it compared — a decision can be recomputed, not just believed |
 | **Human escalation** | Crossing the threshold routes a cart to approval with the full reckoning attached |
 | **Substitution** | An out-of-stock item may be swapped for a real equivalent. The claim is verified against the catalog, and any swap goes to the user even when budget allows |
@@ -38,6 +39,18 @@ the economics of a purchase, and a payment response can be forged. Reasoning is 
 | **Idempotency** | A retried proposal replays its stored outcome instead of creating a second payment |
 | **Tamper-evident audit** | Every row hashes its contents with the previous row's hash. The dashboard breaks and restores the chain live |
 | **Merchant analytics** | GMV, orders, revenue recovered by substitution, spend blocked by policy — all derived from the ledger at read time |
+
+## Protocol alignment
+
+The brief names UAP, ACP, AP2 and x402 as why agent commerce is the open problem this year. Aethis's
+data model follows **AP2's mandate structure** — `intent_mandates` → `cart_mandates` →
+`payment_mandates` — with the same division of authority: the intent mandate is standing permission
+with limits, the cart mandate is a specific basket the human resolves, and the payment mandate is
+what reaches the network.
+
+Stated honestly: mandates here are **server-held and hash-chained**, not user-signed verifiable
+credentials, so the guarantee is tamper-evidence rather than non-repudiation. A2A transport,
+cross-merchant interop and x402 settlement are out of scope.
 
 ## Measured
 

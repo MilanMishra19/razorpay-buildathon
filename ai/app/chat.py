@@ -26,6 +26,8 @@ INTENT_SCHEMA = {
                 "explain_pending",
                 "explain_last",
                 "explain_omission",
+                "approve_cart",
+                "decline_cart",
                 "spend_status",
                 "list_queue",
                 "control_autopilot",
@@ -68,6 +70,9 @@ intent is one of:
 - run_cycle: they want a shopping cycle to run now
 - explain_omission: they name a product and ask why it was not bought, was skipped, or was left \
 out. Any "why didn't you buy X" or "why did you skip X" is this one, whatever X is
+- approve_cart: they are agreeing to a cart that is waiting on them - "approve it", "yes buy it",
+"go ahead", "pay for it"
+- decline_cart: they are refusing a cart that is waiting on them - "decline", "no", "cancel that"
 - explain_pending: they ask why a cart is waiting for their approval, naming no product
 - explain_last: they ask what happened on the most recent cycle, naming no product
 - spend_status: they are asking how much has been spent or what is left
@@ -377,6 +382,9 @@ def suggestions_for(intent: str, has_proposal: bool = False) -> list[str]:
         "explain_pending": ["How much have I spent?", "Run my next cycle"],
         "explain_last": ["What's on my restock list?", "How much have I spent?"],
         "explain_omission": ["What's on my restock list?", "Run my next cycle"],
+        "awaiting_decision": ["Why does it need my approval?"],
+        "cart_declined": ["Run my next cycle", "How much have I spent?"],
+        "awaiting_payment": ["How much have I spent?"],
         "spend_status": ["Run my next cycle", "What's on my restock list?"],
         "list_queue": ["Run my next cycle", "How much have I spent?"],
         "control_autopilot": ["How much have I spent?", "What's on my restock list?"],
@@ -384,6 +392,41 @@ def suggestions_for(intent: str, has_proposal: bool = False) -> list[str]:
         "needs_category": ["Keep household essentials stocked, 600 per order"],
         "unknown": ["How much have I spent?", "Run my next cycle"],
     }.get(intent, ["Run my next cycle", "How much have I spent?"])
+
+
+def describe_cart_for_decision(cart: dict, names: dict[int, str]) -> str:
+    """
+    What you are about to agree to, before you agree to it. Saying "approve" into a chat box should
+    never move money on its own - the words start the decision, the button makes it.
+    """
+    lines = []
+    for item in cart.get("cart_items", []):
+        name = names.get(item["catalog_id"], f"item #{item['catalog_id']}")
+        lines.append(f"{name} ×{item['quantity']}")
+
+    reason = cart.get("rejection_reason") or "it needs your approval"
+    return (
+        f"Cart #{cart['id']} is waiting on you: {', '.join(lines)}, ₹{float(cart['total_amount']):,.2f} "
+        f"in total, held because {reason}. Confirm below and I will approve it and raise the payment — "
+        f"I cannot do that on the strength of a sentence alone."
+    )
+
+
+def describe_settlement(payment: dict) -> str:
+    if payment.get("razorpay_order_id"):
+        return (
+            f"Approved, and Razorpay order {payment['razorpay_order_id']} is raised for "
+            f"₹{float(payment['amount']):,.2f}. It is an order, not a payment — complete the checkout "
+            f"below and the spend counts only once the server has verified the signature."
+        )
+    return (
+        f"Approved and settled for ₹{float(payment['amount']):,.2f}. No live gateway is configured, so "
+        f"the stub client completed it."
+    )
+
+
+def nothing_awaiting() -> str:
+    return "Nothing is waiting on your decision right now."
 
 
 def cannot_help(message: str) -> ChatReply:

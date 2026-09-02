@@ -173,10 +173,16 @@ export interface MandateProposal {
   escalation_threshold_pct: number;
 }
 
+export interface PendingCart extends CartMandate {
+  intended_decision?: 'approve' | 'decline';
+}
+
 export interface ChatReply {
   reply: string;
   intent: string;
   suggestions: string[];
+  cart: PendingCart | null;
+  payment: PaymentMandate | null;
   proposal: MandateProposal | null;
   run: AgentRunReport | null;
   cart_mandate_id: number | null;

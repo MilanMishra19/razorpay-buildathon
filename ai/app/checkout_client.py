@@ -83,6 +83,18 @@ class CheckoutClient:
         response = await self._request("POST", "/intent-mandates", user_id, json=body)
         return response.json()
 
+    async def resolve_cart(self, user_id: int, cart_id: int, decision: str) -> dict:
+        response = await self._request(
+            "POST", f"/cart-mandates/{cart_id}/resolve", user_id, json={"decision": decision}
+        )
+        return response.json()
+
+    async def raise_payment(self, user_id: int, cart_id: int) -> dict:
+        response = await self._request(
+            "POST", "/payment-mandates", user_id, json={"cart_mandate_id": cart_id}
+        )
+        return response.json()
+
     async def revoke_mandate(self, user_id: int, mandate_id: int) -> None:
         await self._request("POST", f"/intent-mandates/{mandate_id}/revoke", user_id, json={})
 
