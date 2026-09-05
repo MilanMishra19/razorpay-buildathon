@@ -4,3 +4,6 @@
 Thumbs.db
 *.log
 .env
+
+# Personal reference, not part of the submission
+INTERVIEW_NOTES.md
